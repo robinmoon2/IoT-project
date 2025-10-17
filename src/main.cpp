@@ -1,7 +1,8 @@
 #include <BME.hpp>
 #include <heltec_unofficial.h>
-#define I2C_SDA 41
-#define I2C_SCL 42
+#include <TMG3993.hpp>
+
+
 // put fuCnction declarations here:
 char buf[30];
 
@@ -13,13 +14,13 @@ void setup() {
   display.setFont(ArialMT_Plain_10);
   display.drawString(0,0,"Hello, world!");
   while(!Serial);
-  //configurationTMG3993();
+  configurationTMG3993();
   configurationBME();
   display.display();
 }
 
 void loop() {
-  //getDataTMG3993();
+  getDataTMG3993();
   Serial.println();
   Serial.print("Looping...");
   getDataBME();
@@ -32,6 +33,7 @@ void loop() {
   display.drawString(10,30,buf);
   snprintf(buf, sizeof(buf), "H: %.2f %%", bme.humidity);
   display.drawString(10,50,buf);
+  snprintf(buf,sizeof(buf),"lux: %.2f ",tmg3993.getLux());
   display.drawString(10,70,buf);
   display.display();
 }

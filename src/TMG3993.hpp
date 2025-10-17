@@ -3,11 +3,14 @@
 #include <Wire.h>
 
 #include "Seeed_TMG3993.h"
+#define I2C_SDA 41
+#define I2C_SCL 42
 
-TMG3993 tmg3993;
+TMG3993 tmg3993(0x39,&Wire1);
 
 
 void configurationTMG3993(){
+    Wire1.begin(I2C_SDA, I2C_SCL);
     if (tmg3993.initialize() == false) {
         Serial.println("Device not found. Check wiring.");
         while (1);
