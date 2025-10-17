@@ -1,22 +1,26 @@
 #pragma once
-/* 
+/*
 File for the configuration of the BME 680 and the phnomenon that we want
 
 Uses as a global file
-*/ 
+*/
 
 
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BME680.h"
-
+#define BME_SCK 36
+#define BME_MISO 37
+#define BME_MOSI 35
+#define BME_CS 34
 #define SEALEVELPRESSURE_HPA (1013.25)
 //#define BME_address =  0X76
 
 
-Adafruit_BME680 bme(&Wire);
+Adafruit_BME680 bme(BME_CS,BME_MOSI,BME_MISO, BME_SCK);
 
 void configurationBME(){
     if(!bme.begin()){
