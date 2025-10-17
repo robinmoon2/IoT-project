@@ -1,30 +1,37 @@
 #include <BME.hpp>
-#include <TMG3993.hpp>
-#include<screen.hpp>
-// put function declarations here:
+#include <heltec_unofficial.h>
+#define I2C_SDA 41
+#define I2C_SCL 42
+// put fuCnction declarations here:
+char buf[30];
 
 
 void setup() {
-  Wire.begin();
   Serial.begin(115200);
-  
-  pinMode(Vext,OUTPUT);
-   digitalWrite(Vext, LOW);
-  // put your setup code here, to run once:
-  
-  InitScreen();
+  heltec_setup();
+
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0,0,"Hello, world!");
   while(!Serial);
-  configurationTMG3993();
+  //configurationTMG3993();
   configurationBME();
+  display.display();
 }
 
 void loop() {
-  getDataTMG3993();
+  //getDataTMG3993();
   Serial.println();
+  Serial.print("Looping...");
   getDataBME();
-  
+  display.drawString(0,0,"Hello, world!");
   delay(2000);
-  
-  display.drawString(10,10,"Hello World");
+
+  snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
+  display.drawString(10,10,buf);
+  snprintf(buf, sizeof(buf), "P: %.2f hPa", bme.pressure/100.0);
+  display.drawString(10,30,buf);
+  snprintf(buf, sizeof(buf), "H: %.2f %%", bme.humidity);
+  display.drawString(10,50,buf);
+  display.drawString(10,70,buf);
   display.display();
 }
