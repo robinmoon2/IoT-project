@@ -10,41 +10,23 @@
 
 char buf[30];
 
-const char* ssid = "TelRobin";
-const char* password = "robinestbeau";
+const char* ssid = "A54cluzet";
+const char* password = "alexandre2004";
 
 
 WebServer server(80);
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
-    // Données intérieures
     doc["temperature"] = bme.temperature;
     doc["humidity"] = bme.humidity;
-    doc["pressure"] = bme.pressure;
-    // Données extérieures
-    doc["temp_today"] = 0;
-    doc["humidity_today"] = 0;
-    doc["weather_today"] = 0;
-    doc["id_weather_today"] = 0;
-    doc["lastupdate"] = 0;
-    doc["ip"] = WiFi.localIP().toString();
-    // Pluie à venir
-    JsonArray rain = doc.createNestedArray("rainfallhour");
-    for (int i = 0; i < 12; i++) rain.add(0);
-    // Prévisions 6 jours
-    JsonArray forecast = doc.createNestedArray("forecast");
-    for (int i = 0; i < 6; i++) {
-        JsonObject day = forecast.createNestedObject();
-        day["day"] = ""; // tu peux ajouter le nom du jour si tu veux
-        day["temp_min"] = 0;
-        day["temp_max"] = 0;
-        day["humidity"] = 0;
-        day["id_weather"] = 0;
-    }
+    doc["pressure"] = bme.pressure/100;
+    doc["lum"] = tmg3993.getLux();
     String json;
     serializeJson(doc, json);
+    Serial.println("API data sent");
     server.send(200, "application/json", json);
+
 }
 
 void handleIndex() {
@@ -69,7 +51,7 @@ void setup() {
   Serial.println("Connected to WiFi");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  
+
   if (!LittleFS.begin()) {
     Serial.println("Erreur LittleFS");
     while (1);

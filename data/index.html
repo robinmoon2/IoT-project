@@ -46,9 +46,6 @@
     <header>
       <h1>🌤️ Station Météo</h1>
       <div class="tabs" role="tablist" aria-label="Navigation">
-        <button class="tab-btn active" data-tab="home">Accueil</button>
-        <button class="tab-btn" data-tab="hourly">Heure par heure</button>
-        <button class="tab-btn" data-tab="daily">7 jours</button>
       </div>
     </header>
 
@@ -56,71 +53,31 @@
     <section id="home" class="section tab-content active" aria-labelledby="Accueil">
       <div class="row">
         <div class="card">
-          <div class="label">Données intérieures</div>
+          <div class="label">DATA</div>
           <div class="value" id="temp-in">-- <span class="unit">°C</span></div>
           <div class="small" id="hum-in">-- %</div>
-          <div class="small" id="pres-in">-- hPa</div>
-        </div>
-
-        <div class="card">
-          <div class="label">Conditions extérieures</div>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-            <img id="icon-out" class="icon" src="" alt="" style="display:none">
-            <div>
-              <div class="value" id="temp-out">-- <span class="unit">°C</span></div>
-              <div class="desc" id="desc-out">--</div>
-            </div>
-          </div>
+          <div class="small" id="pres-in">-- <span class="unit">hPa</span></div>
+          <div class="small" id="lum">--<span class="unit">lx</span></div>
           <div class="small" id="last-update">Dernière mise à jour : --</div>
         </div>
-      </div>
 
-      <div style="margin-top:12px">
-        <div class="label">Précipitations à venir (1h, tous les 5 min)</div>
-        <div id="rain-bars" style="margin-top:8px"></div>
-        <div class="small">Barres = intensité prévue (mm / 5min)</div>
+
       </div>
     </section>
-
-    <!-- HOURLY -->
-    <section id="hourly" class="section tab-content" aria-labelledby="Heure par heure">
-      <div class="label">Prochaine journée (par heure)</div>
-      <div class="hour-list" id="hour-list" aria-live="polite"></div>
-      <div style="margin-top:10px">
-        <div class="small">Cliquez / faites défiler pour voir les heures. Les précipitations affichées si disponibles.</div>
-      </div>
-    </section>
-
-    <!-- DAILY -->
-    <section id="daily" class="section tab-content" aria-labelledby="7 jours">
-      <div class="label">Prévisions 7 jours</div>
-      <div class="forecast-grid" id="forecast-7" style="margin-top:10px"></div>
-    </section>
-
-    <footer>
-      <div id="ip">IP : --</div>
-      <div class="small">Données intérieures : BME280 | Données extérieures : OpenWeather</div>
-    </footer>
-  </div>
 
   <script>
     const API_URL = '/api/data';
     const POLL_MS = 10000;
-    // map OpenWeather id -> icon (online fallback)
-    function getWeatherIcon(id){
-      if (!id && id!==0) return '';
-      if (id>=200 && id<300) return "https://openweathermap.org/img/wn/11d@2x.png";
-      if (id>=300 && id<400) return "https://openweathermap.org/img/wn/09d@2x.png";
-      if (id>=500 && id<600) return "https://openweathermap.org/img/wn/10d@2x.png";
-      if (id>=600 && id<700) return "https://openweathermap.org/img/wn/13d@2x.png";
-      if (id===800) return "https://openweathermap.org/img/wn/01d@2x.png";
-      if (id===801) return "https://openweathermap.org/img/wn/02d@2x.png";
-      if (id===802) return "https://openweathermap.org/img/wn/03d@2x.png";
-      if (id===803 || id===804) return "https://openweathermap.org/img/wn/04d@2x.png";
-      return "";
-    }
-
-    // tabs
+    document.querySelectorAll('.tab-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> {
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.getAttribute('data-tab');
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        document.getElementById(tab).classList.add('active');
+      });
+    });
+    // map OpenWeather id -> icon (online fallback)    // tabs
     document.querySelectorAll('.tab-btn').forEach(btn=>{
       btn.addEventListener('click', ()=> {
         document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -136,106 +93,18 @@
         const r = await fetch(API_URL, {cache:'no-store'});
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
-
-        // home: inside
         if (data.temperature !== undefined) {
           document.getElementById('temp-in').innerHTML = (data.temperature).toFixed(1) + ' <span class="unit">°C</span>';
         }
         if (data.humidity !== undefined) document.getElementById('hum-in').textContent = data.humidity.toFixed(1)+' %';
         if (data.pressure !== undefined) document.getElementById('pres-in').textContent = data.pressure.toFixed(1)+' hPa';
+        if (data.lum !== undefined) document.getElementById('lum').textContent = data.lum.toFixed(0)+' lx';
+        const now = new Date()
 
-        // home: outside
-        if (data.temp_today !== undefined) document.getElementById('temp-out').innerHTML = data.temp_today.toFixed(1)+' <span class="unit">°C</span>';
-        if (data.weather_today !== undefined) document.getElementById('desc-out').textContent = data.weather_today;
-        const icon = document.getElementById('icon-out');
-        if (data.id_weather_today) {
-          icon.src = getWeatherIcon(data.id_weather_today);
-          icon.style.display = '';
-        } else { icon.style.display = 'none'; }
-
-        if (data.lastupdate) {
-          const d = new Date(data.lastupdate * 1000);
-          document.getElementById('last-update').textContent = 'Dernière mise à jour : ' + d.toLocaleString();
-        }
-        if (data.ip) document.getElementById('ip').textContent = 'IP : '+data.ip;
-
-        // rain bars (home) - expects rainfallhour array (12 entries)
-        const rainBars = document.getElementById('rain-bars');
-        rainBars.innerHTML = '';
-        if (Array.isArray(data.rainfallhour)) {
-          data.rainfallhour.forEach((val, i) => {
-            const bar = document.createElement('div');
-            bar.className = 'rain-bar';
-            const inner = document.createElement('div');
-            inner.className = 'rain-bar-inner';
-            const pct = Math.min(100, (val||0) * 20);
-            inner.style.width = pct + '%';
-            inner.style.background = (val||0) < 0.1 ? '#34d399' : (val||0) < 2 ? '#60a5fa' : (val||0) < 7.6 ? '#2563eb' : '#1e40af';
-            bar.appendChild(inner);
-            bar.title = `${i*5}-${(i+1)*5} min : ${(val||0).toFixed(2)} mm`;
-            rainBars.appendChild(bar);
-          });
-        } else {
-          rainBars.innerHTML = '<div class="small">Aucune donnée de pluie disponible</div>';
-        }
-
-        // hourly tab - expects data.hourly array or data.hourlySimple
-        const hourList = document.getElementById('hour-list');
-        hourList.innerHTML = '';
-        const now = new Date();
-        const hourly = Array.isArray(data.hourly) ? data.hourly : (Array.isArray(data.weatherHour) ? data.weatherHour : null);
-        if (hourly && hourly.length) {
-          // use up to 24 entries
-          hourly.slice(0,24).forEach((h, idx) => {
-            // accept structure: {dt,temp,weather[0].id,precipitation,wind_speed} or custom objects
-            let dt = h.dt || h.hour || h.time || (Math.floor(Date.now()/1000) + idx*3600);
-            let temp = (h.temp !== undefined ? h.temp : (h.temperature !== undefined ? h.temperature : null));
-            let id = (h.weather && h.weather[0] && h.weather[0].id) ? h.weather[0].id : (h.id_weather || h.id || null);
-            let rain = (h.precipitation !== undefined ? h.precipitation : (h.rain !== undefined ? (h.rain['1h'] || h.rain) : (h.pop !== undefined ? h.pop : 0)));
-            const date = new Date(dt * 1000);
-            const hourStr = date.getHours().toString().padStart(2,'0') + 'h';
-            const item = document.createElement('div');
-            item.className = 'hour-item';
-            item.innerHTML = `<div class="time">${hourStr}</div>
-                              <img src="${getWeatherIcon(id)}" class="icon" alt="">
-                              <div style="font-weight:700">${temp!==null?temp.toFixed(1)+'°C':'--'}</div>
-                              <div class="small">Pluie: ${Number(rain||0).toFixed(2)}</div>`;
-            hourList.appendChild(item);
-          });
-        } else {
-          hourList.innerHTML = '<div class="small">Aucune donnée horaire disponible</div>';
-        }
-
-        // 7-day tab - expects data.forecast array or data.daily
-        const dailyEl = document.getElementById('forecast-7');
-        dailyEl.innerHTML = '';
-        const daily = Array.isArray(data.forecast) ? data.forecast : (Array.isArray(data.daily) ? data.daily : null);
-        if (daily && daily.length) {
-          daily.slice(0,7).forEach((d, i) => {
-            // expected: {day,temp_min,temp_max,humidity,id_weather} or OpenWeather daily structure
-            let dt = d.dt || d.day || (Date.now()/1000 + i*86400);
-            let dayName = (new Date(dt*1000)).toLocaleDateString(undefined, {weekday:'short'});
-            let tmin = d.temp_min !== undefined ? d.temp_min : (d.temp && d.temp.min !== undefined ? d.temp.min : null);
-            let tmax = d.temp_max !== undefined ? d.temp_max : (d.temp && d.temp.max !== undefined ? d.temp.max : null);
-            let humidity = d.humidity !== undefined ? d.humidity : (d.humidity_day !== undefined ? d.humidity_day : 0);
-            let id = (d.id_weather !== undefined ? d.id_weather : (d.weather && d.weather[0] && d.weather[0].id ? d.weather[0].id : (d.id || null)));
-            const card = document.createElement('div');
-            card.className = 'forecast-card';
-            card.innerHTML = `<div class="small">${dayName}</div>
-                              <img src="${getWeatherIcon(id)}" class="icon" alt="">
-                              <div style="margin-top:6px">${tmin!==null?tmin.toFixed(1):'--'} / <b>${tmax!==null?tmax.toFixed(1):'--'}</b> °C</div>
-                              <div class="small">${humidity!==null?Math.round(humidity)+' %':''}</div>`;
-            dailyEl.appendChild(card);
-          });
-        } else {
-          dailyEl.innerHTML = '<div class="small">Aucune donnée journalière disponible</div>';
-        }
-
-      } catch (e) {
-        console.error('fetch error', e);
-      }
+      }catch(err){
+        console.error('Fetch error:', err);
     }
-
+    }
     fetchAndRender();
     setInterval(fetchAndRender, POLL_MS);
   </script>
