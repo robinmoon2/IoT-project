@@ -1,20 +1,8 @@
-#include <BME.hpp>
-#include <heltec_unofficial.h>
-#include <TMG3993.hpp>
-#include <WiFi.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include "LittleFS.h"
-#include <ArduinoJson.h>
-#include <String.h>
-
-char buf[30];
-
-const char* ssid = "TelRobin";
-const char* password = "robinestbeau";
-
+#include "main.h"
+#
 
 WebServer server(80);
+DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -60,6 +48,7 @@ void handleIndex() {
 
 void setup() {
   Serial.begin(115200);
+
   heltec_setup();
 
   WiFi.begin(ssid, password);
@@ -89,6 +78,15 @@ void setup() {
   configurationTMG3993();
   configurationBME();
   display.display();
+
+  if(ISRECEIVER){
+    setupLoRaReceiver();
+  }
+  else{
+    setupLoRaSender();
+  }
+
+
 }
 
 void loop() {
@@ -96,10 +94,17 @@ void loop() {
   display.clear();
 
   getDataTMG3993();
-  Serial.println();
   getDataBME();
-  display.drawString(0,0,"Hello, world!");
 
+  data1.pressure = bme.pressure;
+  data1.temperature = bme.temperature;
+  data1.light_intensity = tmg3993.getLux();
+  data1.humidity = bme.humidity;
+
+  if(!ISRECEIVER){
+    sendtescouilles(data1);
+  }
+  
   snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
   display.drawString(10,10,buf);
   snprintf(buf, sizeof(buf), "P: %.2f hPa", bme.pressure/100.0);

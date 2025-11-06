@@ -1,86 +1,97 @@
-/**
- * This code will send a two-byte LoRaWAN message every 15 minutes. The first
- * byte is a simple 8-bit counter, the second is the ESP32 chip temperature
- * directly after waking up from its 15 minute sleep in degrees celsius + 100.
- *
- * If your NVS partition does not have stored TTN / LoRaWAN provisioning
- * information in it yet, you will be prompted for them on the serial port and
- * they will be stored for subsequent use.
- *
- * See https://github.com/ropg/LoRaWAN_ESP32
-*/
+#pragma once
+#include "main.h"
+#include "LoRaWan_APP.h"
+#include <vector>
+#include <sstream>
+#include <string>
+#include <iostream>
+#include "LoRaParameters.h"
 
+using namespace std;
 
-// Pause between sends in seconds, so this is every 15 minutes. (Delay will be
-// longer if regulatory or TTN Fair Use Policy requires it.)
-#define MINIMUM_DELAY 900 
+void sendtescouilles(DataStruct data){
+	if(lora_idle == true)
+	{
+    String message = concatenateMessageData(data);
+    delay(1000);
+    sprintf(txpacket,"%s\n",message);  
+    Serial.printf("packet message : %s", txpacket);
+    Serial.printf("\r\nsending packet \"%s\" , length %d\r\n",txpacket, strlen(txpacket));
 
+    Radio.Send( (uint8_t *)txpacket, strlen(txpacket) ); //send the package out	
+    lora_idle = false;
+	}
+  Radio.IrqProcess( );
+}
 
-#include <heltec_unofficial.h>
-#include <LoRaWAN_ESP32.h>
+void setupLoRaSender() {
+    Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
+	
+    txNumber=0;
 
-LoRaWANNode* node;
-
-RTC_DATA_ATTR uint8_t count = 0;
-
-void configurationLoRa() {
+    RadioEvents.TxDone = OnTxDone;
+    RadioEvents.TxTimeout = OnTxTimeout;
     
-  // initialize radio
-  Serial.println("Radio init");
-  int16_t state = radio.begin();
-  if (state != RADIOLIB_ERR_NONE) {
-    Serial.println("Radio did not initialize. We'll try again later.");
-    goToSleep();
-  }
-
-  node = persist.manage(&radio);
-
-  if (!node->isActivated()) {
-    Serial.println("Could not join network. We'll try again later.");
-    goToSleep();
-  }
-
-  // If we're still here, it means we joined, and we can send something
-
-  // Manages uplink intervals to the TTN Fair Use Policy
-  node->setDutyCycle(true, 1250);
-
-  uint8_t uplinkData[2];
-  uplinkData[0] = count++;
-  uplinkData[1] = temp + 100;
-
-  uint8_t downlinkData[256];
-  size_t lenDown = sizeof(downlinkData);
-
-  state = node->sendReceive(uplinkData, sizeof(uplinkData), 1, downlinkData, &lenDown);
-
-  if(state == RADIOLIB_ERR_NONE) {
-    Serial.println("Message sent, no downlink received.");
-  } else if (state > 0) {
-    Serial.println("Message sent, downlink received.");
-  } else {
-    Serial.printf("sendReceive returned error %d, we'll try again later.\n", state);
-  }
-
-  goToSleep();    // Does not return, program starts over next round
-
+    Radio.Init( &RadioEvents );
+    Radio.SetChannel( RF_FREQUENCY );
+    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
+                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
+                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 ); 
 }
 
-void loop() {
-  // This is never called. There is no repetition: we always go back to
-  // deep sleep one way or the other at the end of setup()
+String concatenateMessageData(DataStruct data){
+    String data_message = "";
+    data_message = ("%2f;%2f;%2f;%2f",data.temperature,data.pressure,data.humidity,data.light_intensity);
+    return data_message;
 }
 
-void goToSleep() {
-  Serial.println("Going to deep sleep now");
-  // allows recall of the session after deepsleep
-  persist.saveSession(node);
-  // Calculate minimum duty cycle delay (per FUP & law!)
-  uint32_t interval = node->timeUntilUplink();
-  // And then pick it or our MINIMUM_DELAY, whichever is greater
-  uint32_t delayMs = max(interval, (uint32_t)MINIMUM_DELAY * 1000);
-  Serial.printf("Next TX in %i s\n", delayMs/1000);
-  delay(100);  // So message prints
-  // and off to bed we go
-  heltec_deep_sleep(delayMs/1000);
+void OnTxDone( void )
+{
+	Serial.println("TX done......");
+	lora_idle = true;
 }
+
+void OnTxTimeout( void )
+{
+    Radio.Sleep( );
+    Serial.println("TX Timeout......");
+    lora_idle = true;
+}
+
+void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
+{
+    rssi=rssi;
+    rxSize=size;
+    memcpy(rxpacket, payload, size );
+    rxpacket[size]='\0';
+    Radio.Sleep( );
+    Serial.printf("\r\nreceived packet \"%s\" with rssi %d , length %d\r\n",rxpacket,rssi,rxSize);
+}
+
+void setupLoRaReceiver() {
+    Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
+    
+    txNumber=0;
+    rssi=0;
+  
+    RadioEvents.RxDone = OnRxDone;
+    Radio.Init( &RadioEvents );
+    Radio.SetChannel( RF_FREQUENCY );
+    Radio.SetRxConfig( MODEM_LORA, LORA_BANDWIDTH, LORA_SPREADING_FACTOR,
+                               LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH,
+                               LORA_SYMBOL_TIMEOUT, LORA_FIX_LENGTH_PAYLOAD_ON,
+                               0, true, 0, 0, LORA_IQ_INVERSION_ON, true );
+}
+
+void receiveDataLoRa()
+{
+  if(lora_idle)
+  {
+    lora_idle = false;
+    Serial.println("into RX mode");
+    Radio.Rx(0);
+  }
+  Radio.IrqProcess( );
+}
+
