@@ -60,6 +60,7 @@ void handleIndex() {
 
 void setup() {
   Serial.begin(115200);
+  heltec_setup();
 
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -81,7 +82,6 @@ void setup() {
   // Start the server
   server.begin();
 
-  heltec_setup();
 
   display.setFont(ArialMT_Plain_10);
   display.drawString(0,0,"Hello, world!");
