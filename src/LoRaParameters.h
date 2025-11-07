@@ -1,7 +1,7 @@
 
 #include "LoRaWan_APP.h"
 #include "Arduino.h"
-#include "main.h"
+
 
 
 #define RF_FREQUENCY                                865000000 // Hz
