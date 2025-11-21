@@ -18,12 +18,16 @@ struct DataStruct{
   float light_intensity;
 };
 
+#include "LoRa.hpp"
+
+const bool MAINBOARD = true;
+
 String receivedataweb ="off";
 const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
 
 WebServer server(80);
-DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
+DataStruct data = {0.0f,0.0f,0.0f,0.0f};
 
 
 void handleApiData() {

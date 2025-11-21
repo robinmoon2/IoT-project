@@ -11,6 +11,7 @@
 #define HELTEC_POWER_BUTTON   // must be before "#include <heltec_unofficial.h>"
 #define WAKEUP_GPIO    GPIO_NUM_14
 
+#include "main.cpp"
 #include <heltec_unofficial.h>
 #define PAUSE               300
 #define FREQUENCY           866.3       // for Europe
@@ -111,11 +112,12 @@ DataStruct StringParser(string input){
   sregex_iterator it(input.begin(), input.end(), numberRegex);
   sregex_iterator end;
   vector<float> numbers;
-
+  
   while (it != end) {
       numbers.push_back(stof(it->str()));
       ++it;
   }
+
   DataStruct receivedData;
   receivedData.temperature = numbers[0];
   receivedData.humidity = numbers[1];
@@ -134,7 +136,8 @@ DataStruct ReceiveLoRa(){
       both.printf("  SNR: %.2f dB\n", radio.getSNR());
     }
     RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-    Serial.printf("MESSAGE : %.s \n",rxdata);
+    Serial.printf("MESSAGE : ");
+    Serial.println(rxdata);
     return StringParser(rxdata.c_str());
   }
 }
