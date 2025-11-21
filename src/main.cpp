@@ -6,16 +6,25 @@
 #include <HTTPClient.h>
 #include "LittleFS.h"
 #include <ArduinoJson.h>
+#include "Arduino.h"
 #include <String.h>
 
-char buf[30];
+#define ACTIVATION_PIN 35
+
+struct DataStruct{
+  float temperature;
+  float pressure;
+  float humidity;
+  float light_intensity;
+};
 
 String receivedataweb ="off";
 const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
 
-
 WebServer server(80);
+DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
+
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -64,6 +73,16 @@ void handleReceiveData(){
 
 void setup() {
   Serial.begin(115200);
+  heltec_setup();
+  // both the devices use LoRa communication method
+  configurationLoRa();  
+
+  if(MAINBOARD){
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
 
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -83,27 +102,73 @@ void setup() {
   server.on("/api/data", handleApiData);
   server.on("/api/receive", handleReceiveData);
 
-  // Start the server
-  server.begin();
+    if (!LittleFS.begin()) {
+      Serial.println("Erreur LittleFS");
+      while (1);
+    }
+    server.on("/", handleIndex);
+    server.on("/api/data", handleApiData);
 
-  heltec_setup();
+    // Start the server
+    server.begin();
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0,0,"Hello, world!");
+    while(!Serial);
+  }
 
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0,0,"Hello, world!");
-  while(!Serial);
-  configurationTMG3993();
-  configurationBME();
+  else{
+    display.setFont(ArialMT_Plain_10);
+    configurationBME();
+    display.drawString(0,0,"Hello, world!");
+    configurationTMG3993();
+    
+    print_wakeup_reason();
+    if (heltec_wakeup_was_timer()) {
+    heltec_deep_sleep(2000);
+    }
+    esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
+    while(!Serial);
+    pinMode(ACTIVATION_PIN,INPUT);
+  }
+
   display.display();
+
 }
 
 void loop() {
+  if(MAINBOARD){
+    SendLoRa(1);
+    data = ReceiveLoRa();
+    server.handleClient();
+    delay(10000);
+  }
+  else{
+    getDataBME();
+    getDataTMG3993();
+    data.temperature = 20;
+    data.pressure = 15;
+    data.humidity = 74.3f;
+    uint16_t r, g, b, c;
+    tmg3993.getRGBCRaw(&r,&g,&b,&c);
+    data.light_intensity = tmg3993.getLux(r,g,b,c);
+    SendLoRa(data);
+    delay(1000);
+    esp_deep_sleep_start();
+    
+  }
+  
+}
+  /*
   server.handleClient();
   display.clear();
   digitalWrite(LED_BUILTIN, LOW);
   getDataTMG3993();
-  Serial.println();
   getDataBME();
-  display.drawString(0,0,"Hello, world!");
+
+  data1.pressure = bme.pressure;
+  data1.temperature = bme.temperature;
+  data1.light_intensity = tmg3993.getLux();
+  data1.humidity = bme.humidity;
 
   snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
   display.drawString(10,10,buf);
@@ -114,4 +179,4 @@ void loop() {
   snprintf(buf,sizeof(buf),"lux: %.2f ",tmg3993.getLux());
   display.drawString(10,70,buf);
   display.display();
-}
+}*/
