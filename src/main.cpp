@@ -19,7 +19,6 @@ struct DataStruct{
 };
 
 #include "LoRa.hpp"
-
 const bool MAINBOARD = true;
 
 String receivedataweb ="off";
@@ -160,7 +159,7 @@ void loop() {
     esp_deep_sleep_start();
     
   }
-  
+
 }
   /*
   server.handleClient();

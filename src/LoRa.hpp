@@ -106,6 +106,47 @@ void SendLoRa(int c) {
   RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
 }
 
+void SendLoRa(DataStruct data) {
+  heltec_loop();
+  bool tx_legal = millis() > last_tx + minimum_pause;
+  // Transmit a packet every PAUSE seconds or when the button is pressed
+
+  if (!tx_legal) {
+    both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
+    return;
+  }
+
+  string message = "";
+  message+= to_string(data.temperature);
+  message+=",";
+  message+=to_string(data.humidity);
+
+  Serial.print("DATA : ");
+  Serial.printf("%s \n", message);
+
+  both.printf("TX [%s] ", (message).c_str());
+  radio.clearDio1Action();
+  heltec_led(50);
+
+  tx_time = millis();
+  RADIOLIB(radio.transmit((message).c_str())); // transmit the packages
+  tx_time = millis() - tx_time;
+  Serial.printf("SENDING : %s",(message).c_str());
+
+  heltec_led(0); // turn down the LED of the board
+
+  if (_radiolib_status == RADIOLIB_ERR_NONE) {
+    both.printf("OK (%i ms)\n", (int)tx_time);
+  } else {
+    both.printf("fail (%i)\n", _radiolib_status);
+  }
+
+  minimum_pause = tx_time * 100;
+  last_tx = millis();
+  radio.setDio1Action(rx); // go to the receive mode
+  RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
+}
+
 
 DataStruct StringParser(string input){
   regex numberRegex(R"(\d+)");
@@ -123,6 +164,7 @@ DataStruct StringParser(string input){
   receivedData.humidity = numbers[1];
   return receivedData;
 }
+
 
 
 DataStruct ReceiveLoRa(){ 
@@ -158,40 +200,3 @@ int ReceiveLoRaWakeUp(){
   }
 }
 
-
-void SendLoRa(DataStruct data) {
-  heltec_loop();
-  bool tx_legal = millis() > last_tx + minimum_pause;
-  // Transmit a packet every PAUSE seconds or when the button is pressed
-
-  if (!tx_legal) {
-    both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
-    return;
-  }
-  string message = "";
-  message+= to_string(data.temperature);
-  message+=",";
-  message+=to_string(data.humidity);
-
-  both.printf("TX [%s] ", (message).c_str());
-  radio.clearDio1Action();
-  heltec_led(50);
-
-  tx_time = millis();
-  RADIOLIB(radio.transmit((message).c_str())); // transmit the packages
-  tx_time = millis() - tx_time;
-  Serial.printf("SENDING : %s",(message).c_str());
-
-  heltec_led(0); // turn down the LED of the board
-
-  if (_radiolib_status == RADIOLIB_ERR_NONE) {
-    both.printf("OK (%i ms)\n", (int)tx_time);
-  } else {
-    both.printf("fail (%i)\n", _radiolib_status);
-  }
-
-  minimum_pause = tx_time * 100;
-  last_tx = millis();
-  radio.setDio1Action(rx); // go to the receive mode
-  RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-}
