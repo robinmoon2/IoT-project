@@ -19,20 +19,15 @@ struct DataStruct{
 };
 
 #include "LoRa.hpp"
-
-
-
-
 int c = 0;
 
 // main board host the webserver
 // the auxiliaire board host the sensors 
-const bool MAINBOARD = false; 
+const bool MAINBOARD = true; 
 
 char buf[30];
 const char* ssid = "TelRobin";
 const char* password = "robinestbeau";
-
 
 WebServer server(80);
 DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
@@ -79,57 +74,80 @@ void handleIndex() {
     file.close();
 }
 
-
 void setup() {
   Serial.begin(115200);
   heltec_setup();
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      Serial.println("Connecting to WiFi...");
+  // both the devices use LoRa communication method
+  configurationLoRa();  
+
+  if(MAINBOARD){
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+
+    Serial.println("Connected to WiFi");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    if (!LittleFS.begin()) {
+      Serial.println("Erreur LittleFS");
+      while (1);
+    }
+    server.on("/", handleIndex);
+    server.on("/api/data", handleApiData);
+
+    // Start the server
+    server.begin();
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0,0,"Hello, world!");
+    while(!Serial);
   }
-  Serial.println("Connected to WiFi");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  pinMode(ACTIVATION_PIN,INPUT);
-  if (!LittleFS.begin()) {
-    Serial.println("Erreur LittleFS");
-    while (1);
-  }
 
-  server.on("/", handleIndex);
-  server.on("/api/data", handleApiData);
-
-  // Start the server
-  server.begin();
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0,0,"Hello, world!");
-  while(!Serial);
-  configurationLoRa();
-  //configurationTMG3993();
-  //configurationBME();
-  display.display();
-  print_wakeup_reason();
-
-  if (heltec_wakeup_was_timer()) {
+  else{
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0,0,"Hello, world!");
+    configurationTMG3993();
+    configurationBME();
+    
+    print_wakeup_reason();
+    if (heltec_wakeup_was_timer()) {
     heltec_deep_sleep(2000);
+    }
+    esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
+    while(!Serial);
+    pinMode(ACTIVATION_PIN,INPUT);
   }
-  esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
-  Serial.println("Setup ESP32 to sleep for every " + String(500) +
-  " Seconds");
-  Serial.println("Going to sleep now");
-  delay(1000);
-  Serial.flush(); 
-  
-  Serial.println("This will never be printed");
+
+  display.display();
+
 }
 
 void loop() {
-  SendLoRa(c);
-  delay(2000);
-  c++;
-  esp_deep_sleep_start();
-  Serial.println("NEVER PRINT");
+  if(MAINBOARD){
+    SendLoRa(1);
+    delay(10000);
+    Serial.println("NEVER PRINT");
+    DataStruct data = ReceiveLoRa();
+    server.handleClient();
+  }
+  else{
+    getDataBME();
+    getDataTMG3993();
+    DataStruct data;
+    data.temperature = bme.temperature;
+    data.pressure = bme.pressure;
+    data.humidity = bme.humidity;
+    uint16_t r, g, b, c;
+    tmg3993.getRGBCRaw(&r,&g,&b,&c);
+    data.light_intensity = tmg3993.getLux(r,g,b,c);
+    SendLoRa(data);
+    delay(1000);
+    esp_deep_sleep_start();
+    
+  }
+  
 }
   /*
   server.handleClient();
