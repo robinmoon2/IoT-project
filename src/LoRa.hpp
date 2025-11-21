@@ -1,98 +1,153 @@
 #pragma once
 
-#include "LoRaWan_APP.h"
 #include <vector>
 #include <sstream>
 #include <string>
 #include <iostream>
-#include "LoRaParameters.h"
+#include "Arduino.h"
+
+#define HELTEC_POWER_BUTTON   // must be before "#include <heltec_unofficial.h>"
+#define WAKEUP_GPIO    GPIO_NUM_14
+
+#include <heltec_unofficial.h>
+#define PAUSE               300
+#define FREQUENCY           866.3       // for Europe
+#define BANDWIDTH           250.0
+#define SPREADING_FACTOR    9
+#define TRANSMIT_POWER      0
+#define ACTIVATION_PIN      35
 
 
-String concatenateMessageData(DataStruct data){
-    String data_message = "";
-    data_message = ("%2f;%2f;%2f;%2f",data.temperature,data.pressure,data.humidity,data.light_intensity);
-    return data_message;
-}
+String rxdata;
+volatile bool rxFlag = false;
+long counter = 0;
+uint64_t last_tx = 0;
+uint64_t tx_time;
+uint64_t minimum_pause;
 
-void send_data(DataStruct data){
-	if(lora_idle == true)
-	{
-    String message = concatenateMessageData(data);
-    delay(1000);
-    sprintf(txpacket,"%s\n",message);
-    Serial.printf("packet message : %s", txpacket);
-    Serial.printf("\r\nsending packet \"%s\" , length %d\r\n",txpacket, strlen(txpacket));
+using namespace std;
 
-    Radio.Send( (uint8_t *)txpacket, strlen(txpacket) ); //send the package out
-    lora_idle = false;
-	}
-  Radio.IrqProcess( );
-}
-
-void setupLoRaSender() {
-    Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
-
-    txNumber=0;
-
-    RadioEvents.TxDone = OnTxDone;
-    RadioEvents.TxTimeout = OnTxTimeout;
-
-    Radio.Init( &RadioEvents );
-    Radio.SetChannel( RF_FREQUENCY );
-    Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
-                                   LORA_SPREADING_FACTOR, LORA_CODINGRATE,
-                                   LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
-                                   true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
-}
+bool buttonWake = false;
+bool clockWake  = false;
+uint32_t lastPress = 0;
 
 
+void print_wakeup_reason(){
+  esp_sleep_wakeup_cause_t wakeup_reason;
 
-void OnTxDone( void )
-{
-	Serial.println("TX done......");
-	lora_idle = true;
-}
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+  
 
-void OnTxTimeout( void )
-{
-    Radio.Sleep( );
-    Serial.println("TX Timeout......");
-    lora_idle = true;
-}
-
-void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
-{
-    rssi=rssi;
-    rxSize=size;
-    memcpy(rxpacket, payload, size );
-    rxpacket[size]='\0';
-    Radio.Sleep( );
-    Serial.printf("\r\nreceived packet \"%s\" with rssi %d , length %d\r\n",rxpacket,rssi,rxSize);
-}
-
-void setupLoRaReceiver() {
-    Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
-
-    txNumber=0;
-    rssi=0;
-
-    RadioEvents.RxDone = OnRxDone;
-    Radio.Init( &RadioEvents );
-    Radio.SetChannel( RF_FREQUENCY );
-    Radio.SetRxConfig( MODEM_LORA, LORA_BANDWIDTH, LORA_SPREADING_FACTOR,
-                               LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH,
-                               LORA_SYMBOL_TIMEOUT, LORA_FIX_LENGTH_PAYLOAD_ON,
-                               0, true, 0, 0, LORA_IQ_INVERSION_ON, true );
-}
-
-void receiveDataLoRa()
-{
-  if(lora_idle)
+  switch(wakeup_reason)
   {
-    lora_idle = false;
-    Serial.println("into RX mode");
-    Radio.Rx(0);
+    case ESP_SLEEP_WAKEUP_EXT0 : Serial.println("Wakeup caused by external signal using LORA"); break;
+    case ESP_SLEEP_WAKEUP_EXT1 : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
+    case ESP_SLEEP_WAKEUP_TIMER : Serial.println("Wakeup caused by timer"); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println("Wakeup caused by touchpad"); break;
+    case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
+    default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
   }
-  Radio.IrqProcess( );
+
+}
+
+
+void rx() {
+  rxFlag = true;
+}
+
+void configurationLoRa() {
+  heltec_setup();
+  pinMode(ACTIVATION_PIN,INPUT);
+  both.println("Radio init");
+  RADIOLIB_OR_HALT(radio.begin());
+  // Set the callback function for received packets
+  radio.setDio1Action(rx);
+  // Set radio parameters
+  both.printf("Frequency: %.2f MHz\n", FREQUENCY);
+  RADIOLIB_OR_HALT(radio.setFrequency(FREQUENCY));
+  both.printf("Bandwidth: %.1f kHz\n", BANDWIDTH);
+  RADIOLIB_OR_HALT(radio.setBandwidth(BANDWIDTH));
+  both.printf("Spreading Factor: %i\n", SPREADING_FACTOR);
+  RADIOLIB_OR_HALT(radio.setSpreadingFactor(SPREADING_FACTOR));
+  both.printf("TX power: %i dBm\n", TRANSMIT_POWER);
+  RADIOLIB_OR_HALT(radio.setOutputPower(TRANSMIT_POWER));
+  // Start receiving
+  RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
+}
+
+void SendLoRa(int c ) {
+  heltec_loop();
+  bool tx_legal = millis() > last_tx + minimum_pause;
+// Transmit a packet every PAUSE seconds or when the button is pressed
+  if (!tx_legal) {
+    both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
+    return;
+  }
+
+  both.printf("TX [%s] ", String(c).c_str());
+  radio.clearDio1Action();
+  heltec_led(50);
+
+  tx_time = millis();
+  RADIOLIB(radio.transmit(String(c).c_str())); // transmit the packages
+  tx_time = millis() - tx_time;
+  Serial.printf("SENDING : %s",String(c).c_str());
+
+  heltec_led(0); // turn down the LED of the board
+
+  if (_radiolib_status == RADIOLIB_ERR_NONE) {
+    both.printf("OK (%i ms)\n", (int)tx_time);
+  } else {
+    both.printf("fail (%i)\n", _radiolib_status);
+  }
+
+  minimum_pause = tx_time * 100;
+  last_tx = millis();
+  radio.setDio1Action(rx); // go to the receive mode
+  RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
+}
+
+
+DataStruct StringParser(string message){
+  DataStruct receivedData;
+  string value = "";
+  int data_index =0;
+  string index ="";
+  for(int i=0; i<message.length();i++){
+    if(message[i] != ';')
+      value += message[i];
+    else{
+      if(data_index ==0){
+      receivedData.temperature = std::stof(value);
+      }
+      if(data_index == 1){
+      receivedData.pressure = std::stof(value);
+      }
+      if(data_index == 2){
+      receivedData.humidity = std::stof(value);
+      }
+      if(data_index == 3){
+      receivedData.light_intensity = std::stof(value);
+      }
+      data_index ++;
+      value = "";
+    }
+  }
+  return receivedData;
+}
+
+DataStruct ReceiveLoRa(){ 
+  if (rxFlag) {
+    rxFlag = false;
+    radio.readData(rxdata);
+    Serial.println("FLAG");
+    if (_radiolib_status == RADIOLIB_ERR_NONE) {
+      both.printf("RX [%s]\n", rxdata.c_str());
+      both.printf("  RSSI: %.2f dBm\n", radio.getRSSI());
+      both.printf("  SNR: %.2f dB\n", radio.getSNR());
+    }
+    RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
+    return StringParser(rxdata.c_str());
+  }
 }
 
