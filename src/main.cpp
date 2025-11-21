@@ -20,7 +20,7 @@ struct DataStruct{
 
 #include "LoRa.hpp"
 int c = 0;
-
+DataStruct data;
 // main board host the webserver
 // the auxiliaire board host the sensors 
 const bool MAINBOARD = true; 
@@ -36,9 +36,9 @@ DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
 void handleApiData() {
     DynamicJsonDocument doc(4096);
     // Données intérieures
-    doc["temperature"] = bme.temperature;
-    doc["humidity"] = bme.humidity;
-    doc["pressure"] = bme.pressure;
+    doc["temperature"] = data.temperature;
+    doc["humidity"] = data.humidity;
+    doc["pressure"] = data.pressure;
     // Données extérieures
     doc["temp_today"] = 0;
     doc["humidity_today"] = 0;
@@ -107,9 +107,9 @@ void setup() {
 
   else{
     display.setFont(ArialMT_Plain_10);
+    configurationBME();
     display.drawString(0,0,"Hello, world!");
     configurationTMG3993();
-    configurationBME();
     
     print_wakeup_reason();
     if (heltec_wakeup_was_timer()) {
@@ -127,18 +127,16 @@ void setup() {
 void loop() {
   if(MAINBOARD){
     SendLoRa(1);
-    delay(10000);
-    Serial.println("NEVER PRINT");
-    DataStruct data = ReceiveLoRa();
+    data = ReceiveLoRa();
     server.handleClient();
+    delay(10000);
   }
   else{
     getDataBME();
     getDataTMG3993();
-    DataStruct data;
-    data.temperature = bme.temperature;
-    data.pressure = bme.pressure;
-    data.humidity = bme.humidity;
+    data.temperature = 20;
+    data.pressure = 15;
+    data.humidity = 74.3f;
     uint16_t r, g, b, c;
     tmg3993.getRGBCRaw(&r,&g,&b,&c);
     data.light_intensity = tmg3993.getLux(r,g,b,c);
