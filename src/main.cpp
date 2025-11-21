@@ -6,22 +6,39 @@
 #include <HTTPClient.h>
 #include "LittleFS.h"
 #include <ArduinoJson.h>
+#include "Arduino.h"
 #include <String.h>
 
-char buf[30];
+#define ACTIVATION_PIN 35
 
+struct DataStruct{
+  float temperature;
+  float pressure;
+  float humidity;
+  float light_intensity;
+};
+
+#include "LoRa.hpp"
+int c = 0;
+DataStruct data;
+// main board host the webserver
+// the auxiliaire board host the sensors 
+const bool MAINBOARD = true; 
+
+char buf[30];
 const char* ssid = "TelRobin";
 const char* password = "robinestbeau";
 
-
 WebServer server(80);
+DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
+
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
     // Données intérieures
-    doc["temperature"] = bme.temperature;
-    doc["humidity"] = bme.humidity;
-    doc["pressure"] = bme.pressure;
+    doc["temperature"] = data.temperature;
+    doc["humidity"] = data.humidity;
+    doc["pressure"] = data.pressure;
     // Données extérieures
     doc["temp_today"] = 0;
     doc["humidity_today"] = 0;
@@ -57,48 +74,90 @@ void handleIndex() {
     file.close();
 }
 
-
 void setup() {
   Serial.begin(115200);
-
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      Serial.println("Connecting to WiFi...");
-  }
-  Serial.println("Connected to WiFi");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-  
-  if (!LittleFS.begin()) {
-    Serial.println("Erreur LittleFS");
-    while (1);
-  }
-
-  server.on("/", handleIndex);
-  server.on("/api/data", handleApiData);
-
-  // Start the server
-  server.begin();
-
   heltec_setup();
+  // both the devices use LoRa communication method
+  configurationLoRa();  
 
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0,0,"Hello, world!");
-  while(!Serial);
-  configurationTMG3993();
-  configurationBME();
+  if(MAINBOARD){
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.println("Connecting to WiFi...");
+    }
+
+    Serial.println("Connected to WiFi");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    if (!LittleFS.begin()) {
+      Serial.println("Erreur LittleFS");
+      while (1);
+    }
+    server.on("/", handleIndex);
+    server.on("/api/data", handleApiData);
+
+    // Start the server
+    server.begin();
+    display.setFont(ArialMT_Plain_10);
+    display.drawString(0,0,"Hello, world!");
+    while(!Serial);
+  }
+
+  else{
+    display.setFont(ArialMT_Plain_10);
+    configurationBME();
+    display.drawString(0,0,"Hello, world!");
+    configurationTMG3993();
+    
+    print_wakeup_reason();
+    if (heltec_wakeup_was_timer()) {
+    heltec_deep_sleep(2000);
+    }
+    esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
+    while(!Serial);
+    pinMode(ACTIVATION_PIN,INPUT);
+  }
+
   display.display();
+
 }
 
 void loop() {
+  if(MAINBOARD){
+    SendLoRa(1);
+    data = ReceiveLoRa();
+    server.handleClient();
+    delay(10000);
+  }
+  else{
+    getDataBME();
+    getDataTMG3993();
+    data.temperature = 20;
+    data.pressure = 15;
+    data.humidity = 74.3f;
+    uint16_t r, g, b, c;
+    tmg3993.getRGBCRaw(&r,&g,&b,&c);
+    data.light_intensity = tmg3993.getLux(r,g,b,c);
+    SendLoRa(data);
+    delay(1000);
+    esp_deep_sleep_start();
+    
+  }
+  
+}
+  /*
   server.handleClient();
   display.clear();
 
   getDataTMG3993();
-  Serial.println();
   getDataBME();
-  display.drawString(0,0,"Hello, world!");
+
+  data1.pressure = bme.pressure;
+  data1.temperature = bme.temperature;
+  data1.light_intensity = tmg3993.getLux();
+  data1.humidity = bme.humidity;
 
   snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
   display.drawString(10,10,buf);
@@ -109,4 +168,4 @@ void loop() {
   snprintf(buf,sizeof(buf),"lux: %.2f ",tmg3993.getLux());
   display.drawString(10,70,buf);
   display.display();
-}
+}*/
