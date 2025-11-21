@@ -10,6 +10,7 @@
 
 char buf[30];
 
+String receivedataweb ="off";
 const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
 
@@ -39,6 +40,27 @@ void handleIndex() {
     file.close();
 }
 
+void handleReceiveData(){
+  HTTPClient http;
+  http.begin("http://example.com/api/receive");
+  int httpResponseCode = http.GET();
+  if (httpResponseCode > 0) {
+      String payload = http.getString();
+      receivedataweb = payload;
+      Serial.println("Data received from web: " + receivedataweb);
+      display.clear();
+      display.drawString(0,0,"Data from web:");
+      display.drawString(0,10,receivedataweb);
+      display.display();
+       delay(1000);
+  } else {
+      Serial.print("Error on HTTP request: ");
+      Serial.println(httpResponseCode);
+  }
+  http.end();
+
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -59,6 +81,7 @@ void setup() {
 
   server.on("/", handleIndex);
   server.on("/api/data", handleApiData);
+  server.on("/api/receive", handleReceiveData);
 
   // Start the server
   server.begin();
@@ -76,7 +99,7 @@ void setup() {
 void loop() {
   server.handleClient();
   display.clear();
-
+  digitalWrite(LED_BUILTIN, LOW);
   getDataTMG3993();
   Serial.println();
   getDataBME();
