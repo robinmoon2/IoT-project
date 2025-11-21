@@ -21,6 +21,8 @@ struct DataStruct{
 #include "LoRa.hpp"
 const bool MAINBOARD = true;
 
+bool buttonWake = false;
+
 String receivedataweb ="off";
 const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
@@ -31,10 +33,11 @@ DataStruct data = {0.0f,0.0f,0.0f,0.0f};
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
-    doc["temperature"] = bme.temperature;
-    doc["humidity"] = bme.humidity;
-    doc["pressure"] = bme.pressure/100;
-    doc["lum"] = tmg3993.getLux();
+    doc["temperature"] = data.temperature;
+    doc["humidity"] = data.humidity;
+    doc["pressure"] = data.pressure/100;
+    doc["lum"] = data.light_intensity;
+
     String json;
     serializeJson(doc, json);
     Serial.println("API data sent");
@@ -60,10 +63,7 @@ void handleReceiveData(){
       String payload = http.getString();
       receivedataweb = payload;
       Serial.println("Data received from web: " + receivedataweb);
-      display.clear();
-      display.drawString(0,0,"Data from web:");
-      display.drawString(0,10,receivedataweb);
-      display.display();
+      buttonWake = true;
        delay(1000);
   } else {
       Serial.print("Error on HTTP request: ");
@@ -77,8 +77,7 @@ void handleReceiveData(){
 void setup() {
   Serial.begin(115200);
   heltec_setup();
-  // both the devices use LoRa communication method
-  configurationLoRa();  
+  configurationLoRa();    // both the devices use LoRa communication method
 
   if(MAINBOARD){
     WiFi.begin(ssid, password);
@@ -105,18 +104,11 @@ void setup() {
   server.on("/api/data", handleApiData);
   server.on("/api/receive", handleReceiveData);
 
-    if (!LittleFS.begin()) {
-      Serial.println("Erreur LittleFS");
-      while (1);
-    }
-    server.on("/", handleIndex);
-    server.on("/api/data", handleApiData);
-
-    // Start the server
-    server.begin();
-    display.setFont(ArialMT_Plain_10);
-    display.drawString(0,0,"Hello, world!");
-    while(!Serial);
+  // Start the server
+  server.begin();
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0,0,"Hello, world!");
+  while(!Serial);
   }
 
   else{
@@ -140,46 +132,34 @@ void setup() {
 
 void loop() {
   if(MAINBOARD){
-    SendLoRa(1);
-    data = ReceiveLoRa();
+    if(buttonWake){
+      SendLoRa(1);
+      data = ReceiveLoRa();
+      buttonWake = false;
+      Serial.print("Temperature = ");
+      Serial.print(data.temperature);
+      Serial.println(" *C");
+
+    Serial.print("Humidity =");
+    Serial.print(data.humidity);
+    Serial.println(" d");
+    }
     server.handleClient();
-    delay(10000);
   }
   else{
     getDataBME();
     getDataTMG3993();
-    data.temperature = 20;
-    data.pressure = 15;
+
+    data.temperature = 20.0f;
+    data.pressure = 15.0f;
     data.humidity = 74.3f;
+
     uint16_t r, g, b, c;
     tmg3993.getRGBCRaw(&r,&g,&b,&c);
     data.light_intensity = tmg3993.getLux(r,g,b,c);
+
     SendLoRa(data);
     delay(1000);
-    esp_deep_sleep_start();
-    
+    esp_deep_sleep_start(); 
   }
-
 }
-  /*
-  server.handleClient();
-  display.clear();
-  digitalWrite(LED_BUILTIN, LOW);
-  getDataTMG3993();
-  getDataBME();
-
-  data1.pressure = bme.pressure;
-  data1.temperature = bme.temperature;
-  data1.light_intensity = tmg3993.getLux();
-  data1.humidity = bme.humidity;
-
-  snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
-  display.drawString(10,10,buf);
-  snprintf(buf, sizeof(buf), "P: %.2f hPa", bme.pressure/100.0);
-  display.drawString(10,30,buf);
-  snprintf(buf, sizeof(buf), "H: %.2f %%", bme.humidity);
-  display.drawString(10,50,buf);
-  snprintf(buf,sizeof(buf),"lux: %.2f ",tmg3993.getLux());
-  display.drawString(10,70,buf);
-  display.display();
-}*/

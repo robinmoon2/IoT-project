@@ -1,12 +1,4 @@
 #pragma once
-/*
-File for the configuration of the BME 680 and the phnomenon that we want
-
-Uses as a global file
-*/
-
-
-
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
@@ -18,7 +10,6 @@ Uses as a global file
 #define BME_CS 34
 #define SEALEVELPRESSURE_HPA (1013.25)
 //#define BME_address =  0X76
-
 
 Adafruit_BME680 bme(BME_CS,BME_MOSI,BME_MISO, BME_SCK);
 
@@ -33,7 +24,6 @@ void configurationBME(){
     bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
     bme.setGasHeater(320,150); // 320 *C for 150 ms
 }
-
 
 void getDataBME(){
     if (! bme.performReading()) {

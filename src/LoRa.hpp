@@ -11,7 +11,6 @@
 #define HELTEC_POWER_BUTTON   // must be before "#include <heltec_unofficial.h>"
 #define WAKEUP_GPIO    GPIO_NUM_14
 
-#include "main.cpp"
 #include <heltec_unofficial.h>
 #define PAUSE               300
 #define FREQUENCY           866.3       // for Europe
@@ -29,9 +28,6 @@ uint64_t minimum_pause;
 
 using namespace std;
 
-bool buttonWake = false;
-bool clockWake  = false;
-uint32_t lastPress = 0;
 
 
 void print_wakeup_reason(){
@@ -74,6 +70,8 @@ void configurationLoRa() {
   RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
 }
 
+
+// ============ SENDING FUNCTION =====================
 void SendLoRa(int c) {
   heltec_loop();
   bool tx_legal = millis() > last_tx + minimum_pause;
@@ -82,7 +80,6 @@ void SendLoRa(int c) {
     both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
     return;
   }
-
   both.printf("TX [%s] ", String(c).c_str());
   radio.clearDio1Action();
   heltec_led(50);
@@ -116,7 +113,7 @@ void SendLoRa(DataStruct data) {
     return;
   }
 
-  string message = "";
+  string message = "0,";
   message+= to_string(data.temperature);
   message+=",";
   message+=to_string(data.humidity);
@@ -148,24 +145,53 @@ void SendLoRa(DataStruct data) {
 }
 
 
+
+// ============ RECEIVING FUNCTION =====================
+
 DataStruct StringParser(string input){
-  regex numberRegex(R"(\d+)");
+
+  size_t pos = 0;
+  string token;
+  string delimiter = ",";
+  vector<float> numbers;
+
+  while((pos = input.find(delimiter)) != string::npos){
+      token = input.substr(0,pos);
+      numbers.push_back((float)atof(token.c_str()));
+      input.erase(0,pos + delimiter.length());
+  }
+  numbers.push_back((float)atof(input.c_str()));
+
+  for(int i=0; i<numbers.size();i++){
+    Serial.print(numbers[i]);
+    Serial.print(",");
+  }
+  
+  Serial.println();
+  DataStruct receivedData;
+  receivedData.temperature = numbers[1];
+  receivedData.humidity = numbers[2];
+  return receivedData; 
+  /*regex numberRegex(R"(\d+)");
   sregex_iterator it(input.begin(), input.end(), numberRegex);
   sregex_iterator end;
   vector<float> numbers;
-  
+
   while (it != end) {
-      numbers.push_back(stof(it->str()));
+      numbers.push_back(stof(string(it->str())));
       ++it;
   }
 
+  for(int i=0; i<numbers.size();i++){
+    Serial.print(numbers[i]);
+    Serial.print(",");
+  }
+  Serial.println();
   DataStruct receivedData;
-  receivedData.temperature = numbers[0];
-  receivedData.humidity = numbers[1];
-  return receivedData;
+  receivedData.temperature = numbers[1];
+  receivedData.humidity = numbers[2];
+  return receivedData; */
 }
-
-
 
 DataStruct ReceiveLoRa(){ 
   if (rxFlag) {
@@ -178,12 +204,9 @@ DataStruct ReceiveLoRa(){
       both.printf("  SNR: %.2f dB\n", radio.getSNR());
     }
     RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-    Serial.printf("MESSAGE : ");
-    Serial.println(rxdata);
     return StringParser(rxdata.c_str());
   }
 }
-
 
 int ReceiveLoRaWakeUp(){ 
   if (rxFlag) {
@@ -199,4 +222,5 @@ int ReceiveLoRaWakeUp(){
     return rxdata.toInt();
   }
 }
+
 
