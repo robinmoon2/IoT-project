@@ -18,16 +18,9 @@ struct DataStruct{
   float light_intensity;
 };
 
-#include "LoRa.hpp"
-int c = 0;
-DataStruct data;
-// main board host the webserver
-// the auxiliaire board host the sensors 
-const bool MAINBOARD = true; 
-
-char buf[30];
-const char* ssid = "TelRobin";
-const char* password = "robinestbeau";
+String receivedataweb ="off";
+const char* ssid = "A54cluzet";
+const char* password = "alexandre2004";
 
 WebServer server(80);
 DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
@@ -35,33 +28,15 @@ DataStruct data1 = {0.0f,0.0f,0.0f,0.0f};
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
-    // Données intérieures
-    doc["temperature"] = data.temperature;
-    doc["humidity"] = data.humidity;
-    doc["pressure"] = data.pressure;
-    // Données extérieures
-    doc["temp_today"] = 0;
-    doc["humidity_today"] = 0;
-    doc["weather_today"] = 0;
-    doc["id_weather_today"] = 0;
-    doc["lastupdate"] = 0;
-    doc["ip"] = WiFi.localIP().toString();
-    // Pluie à venir
-    JsonArray rain = doc.createNestedArray("rainfallhour");
-    for (int i = 0; i < 12; i++) rain.add(0);
-    // Prévisions 6 jours
-    JsonArray forecast = doc.createNestedArray("forecast");
-    for (int i = 0; i < 6; i++) {
-        JsonObject day = forecast.createNestedObject();
-        day["day"] = ""; // tu peux ajouter le nom du jour si tu veux
-        day["temp_min"] = 0;
-        day["temp_max"] = 0;
-        day["humidity"] = 0;
-        day["id_weather"] = 0;
-    }
+    doc["temperature"] = bme.temperature;
+    doc["humidity"] = bme.humidity;
+    doc["pressure"] = bme.pressure/100;
+    doc["lum"] = tmg3993.getLux();
     String json;
     serializeJson(doc, json);
+    Serial.println("API data sent");
     server.send(200, "application/json", json);
+
 }
 
 void handleIndex() {
@@ -73,6 +48,28 @@ void handleIndex() {
     server.streamFile(file, "text/html");
     file.close();
 }
+
+void handleReceiveData(){
+  HTTPClient http;
+  http.begin("http://example.com/api/receive");
+  int httpResponseCode = http.GET();
+  if (httpResponseCode > 0) {
+      String payload = http.getString();
+      receivedataweb = payload;
+      Serial.println("Data received from web: " + receivedataweb);
+      display.clear();
+      display.drawString(0,0,"Data from web:");
+      display.drawString(0,10,receivedataweb);
+      display.display();
+       delay(1000);
+  } else {
+      Serial.print("Error on HTTP request: ");
+      Serial.println(httpResponseCode);
+  }
+  http.end();
+
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -87,9 +84,23 @@ void setup() {
         Serial.println("Connecting to WiFi...");
     }
 
-    Serial.println("Connected to WiFi");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  if (!LittleFS.begin()) {
+    Serial.println("Erreur LittleFS");
+    while (1);
+  }
+
+  server.on("/", handleIndex);
+  server.on("/api/data", handleApiData);
+  server.on("/api/receive", handleReceiveData);
 
     if (!LittleFS.begin()) {
       Serial.println("Erreur LittleFS");
@@ -150,7 +161,7 @@ void loop() {
   /*
   server.handleClient();
   display.clear();
-
+  digitalWrite(LED_BUILTIN, LOW);
   getDataTMG3993();
   getDataBME();
 
