@@ -8,10 +8,14 @@
 #define BME_MISO 37
 #define BME_MOSI 35
 #define BME_CS 34
+#define VSPI FSPI
 #define SEALEVELPRESSURE_HPA (1013.25)
-//#define BME_address =  0X76
 
-Adafruit_BME680 bme(BME_CS,BME_MOSI,BME_MISO, BME_SCK);
+SPIClass* vspi = new SPIClass(VSPI);
+
+Adafruit_BME680 bme(BME_CS, vspi);
+//Adafruit_BME680 bme(BME_CS,BME_MOSI,BME_MISO, BME_SCK);
+//static const int spiClk = 1000000;  // 1 MHz
 
 void configurationBME(){
     if(!bme.begin()){
@@ -24,6 +28,16 @@ void configurationBME(){
     bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
     bme.setGasHeater(320,150); // 320 *C for 150 ms
 }
+/*
+void spiCommand(SPIClass *spi, byte data) {
+  //use it as you would the regular arduino SPI API
+  spi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
+  digitalWrite(spi->pinSS(), LOW);  //pull SS slow to prep other end for transfer
+  spi->transfer(data);
+  digitalWrite(spi->pinSS(), HIGH);  //pull ss high to signify end of data transfer
+  spi->endTransaction();
+}
+*/
 
 void getDataBME(){
     if (! bme.performReading()) {

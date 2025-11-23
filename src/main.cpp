@@ -19,7 +19,7 @@ struct DataStruct{
 };
 
 #include "LoRa.hpp"
-const bool MAINBOARD = true;
+const bool MAINBOARD = false;
 
 bool buttonWake = false;
 
@@ -75,9 +75,7 @@ void handleReceiveData(){
 
 
 void setup() {
-  Serial.begin(115200);
   heltec_setup();
-  configurationLoRa();    // both the devices use LoRa communication method
 
   if(MAINBOARD){
     WiFi.begin(ssid, password);
@@ -112,6 +110,9 @@ void setup() {
   }
 
   else{
+    vspi->begin(BME_SCK, BME_MISO, BME_MOSI, BME_CS);
+    //pinMode(vspi->pinSS(), OUTPUT);  //VSPI SS
+    radio.sleep(true);
     display.setFont(ArialMT_Plain_10);
     configurationBME();
     display.drawString(0,0,"Hello, world!");
@@ -125,7 +126,7 @@ void setup() {
     while(!Serial);
     pinMode(ACTIVATION_PIN,INPUT);
   }
-
+  configurationLoRa();    // both the devices use LoRa communication method
   display.display();
 
 }
@@ -146,19 +147,22 @@ void loop() {
     }
     server.handleClient();
   }
+  
   else{
+    hspi->endTransaction();
+    vspi->begin();
     getDataBME();
     getDataTMG3993();
-
-    data.temperature = 20.0f;
+    vspi->endTransaction();
+    hspi->begin();
+    data.temperature = bme.temperature;
     data.pressure = 15.0f;
-    data.humidity = 74.3f;
-
+    data.humidity = bme.humidity;
     uint16_t r, g, b, c;
     tmg3993.getRGBCRaw(&r,&g,&b,&c);
     data.light_intensity = tmg3993.getLux(r,g,b,c);
 
-    SendLoRa(data);
+    //SendLoRa(data);
     delay(1000);
     esp_deep_sleep_start(); 
   }
