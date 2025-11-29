@@ -1,5 +1,3 @@
-#pragma once
-
 #include "TMG3993.h"
 
 #define I2C_SDA 41

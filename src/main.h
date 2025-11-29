@@ -23,4 +23,4 @@ const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
 
 WebServer server(80);
-DataStruct data = {0.0f,0.0f,0.0f,0.0f};
+DataStruct data;
