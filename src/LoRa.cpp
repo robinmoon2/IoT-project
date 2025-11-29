@@ -1,12 +1,11 @@
 #include "LoRa.h"
-#include "HeltecBoard.h" // Inclut les "extern" et RadioLib
+#include "HeltecBoard.h" 
 
 #include <vector>
 #include <sstream>
 #include <iostream>
 #include <string>
 
-// NOTE : On n'inclut PAS <heltec_unofficial.h> ici pour éviter les multiples définitions.
 
 #define FREQUENCY           866.3
 #define BANDWIDTH           250.0
@@ -160,25 +159,7 @@ DataStruct StringParser(string input){
   receivedData.temperature = numbers[1];
   receivedData.humidity = numbers[2];
   return receivedData; 
-  /*regex numberRegex(R"(\d+)");
-  sregex_iterator it(input.begin(), input.end(), numberRegex);
-  sregex_iterator end;
-  vector<float> numbers;
 
-  while (it != end) {
-      numbers.push_back(stof(string(it->str())));
-      ++it;
-  }
-
-  for(int i=0; i<numbers.size();i++){
-    Serial.print(numbers[i]);
-    Serial.print(",");
-  }
-  Serial.println();
-  DataStruct receivedData;
-  receivedData.temperature = numbers[1];
-  receivedData.humidity = numbers[2];
-  return receivedData; */
 }
 
 DataStruct ReceiveLoRa(){ 
@@ -197,22 +178,4 @@ DataStruct ReceiveLoRa(){
   DataStruct empty{};
   return empty;
 }
-
-
-int ReceiveLoRaWakeUp(){ 
-  if (rxFlag) {
-    rxFlag = false;
-    radio.readData(rxdata);
-    Serial.println("FLAG");
-    if (_radiolib_status == RADIOLIB_ERR_NONE) {
-      Serial.printf("RX [%s]\n", rxdata.c_str());
-      Serial.printf("  RSSI: %.2f dBm\n", radio.getRSSI());
-      Serial.printf("  SNR: %.2f dB\n", radio.getSNR());
-    }
-    RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-    return rxdata.toInt();
-  }
-  return 0;
-}
-
 
