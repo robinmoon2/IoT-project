@@ -72,7 +72,6 @@ void configurationLoRa() {
 
 // ============ SENDING FUNCTION =====================
 void SendLoRa(int c) {
-  heltec_loop();
   bool tx_legal = millis() > last_tx + minimum_pause;
   // Transmit a packet every PAUSE seconds or when the button is pressed
   if (!tx_legal) {
@@ -103,7 +102,6 @@ void SendLoRa(int c) {
 }
 
 void SendLoRa(DataStruct data) {
-  heltec_loop();
   bool tx_legal = millis() > last_tx + minimum_pause;
   // Transmit a packet every PAUSE seconds or when the button is pressed
 

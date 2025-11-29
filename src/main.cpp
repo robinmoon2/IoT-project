@@ -24,12 +24,12 @@ const bool MAINBOARD = false;
 bool buttonWake = false;
 
 String receivedataweb ="off";
+
 const char* ssid = "A54cluzet";
 const char* password = "alexandre2004";
 
 WebServer server(80);
 DataStruct data = {0.0f,0.0f,0.0f,0.0f};
-
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -102,6 +102,8 @@ void setup() {
   server.on("/api/data", handleApiData);
   server.on("/api/receive", handleReceiveData);
 
+    configurationLoRa();    // both the devices use LoRa communication method
+
   // Start the server
   server.begin();
   display.setFont(ArialMT_Plain_10);
@@ -110,11 +112,12 @@ void setup() {
   }
 
   else{
-    vspi->begin(BME_SCK, BME_MISO, BME_MOSI, BME_CS);
-    //pinMode(vspi->pinSS(), OUTPUT);  //VSPI SS
-    radio.sleep(true);
-    display.setFont(ArialMT_Plain_10);
+    heltec_setup();
+
     configurationBME();
+    configurationLoRa();    // both the devices use LoRa communication method
+
+    display.setFont(ArialMT_Plain_10);
     display.drawString(0,0,"Hello, world!");
     configurationTMG3993();
     
@@ -126,9 +129,7 @@ void setup() {
     while(!Serial);
     pinMode(ACTIVATION_PIN,INPUT);
   }
-  configurationLoRa();    // both the devices use LoRa communication method
   display.display();
-
 }
 
 void loop() {
@@ -148,22 +149,30 @@ void loop() {
     server.handleClient();
   }
   
-  else{
-    hspi->endTransaction();
-    vspi->begin();
-    getDataBME();
-    getDataTMG3993();
-    vspi->endTransaction();
-    hspi->begin();
-    data.temperature = bme.temperature;
-    data.pressure = 15.0f;
-    data.humidity = bme.humidity;
-    uint16_t r, g, b, c;
-    tmg3993.getRGBCRaw(&r,&g,&b,&c);
-    data.light_intensity = tmg3993.getLux(r,g,b,c);
+  else {
+      Serial.println("LOOP");
+      //vspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+      Serial.println("VSPI initialisation");
+      //digitalWrite(BME_CS, LOW);
+      Serial.println("DIGITAL WRITE LOW");
+      getDataBME();
+      Serial.println("DATA ACQUIRED");
+      //digitalWrite(BME_CS, HIGH);
+      vspi->endTransaction();
 
-    //SendLoRa(data);
-    delay(1000);
-    esp_deep_sleep_start(); 
+      getDataTMG3993();
+      data.temperature = bme.temperature;
+      data.pressure = bme.pressure;
+      data.humidity = bme.humidity;
+
+      Serial.println(data.temperature);
+      uint16_t r, g, b, c;
+      tmg3993.getRGBCRaw(&r,&g,&b,&c);
+      data.light_intensity = tmg3993.getLux(r,g,b,c);
+
+      SendLoRa(data);
+      delay(1000);
+      esp_deep_sleep_start();
   }
+
 }

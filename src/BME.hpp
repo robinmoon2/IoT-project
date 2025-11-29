@@ -4,51 +4,49 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_BME680.h"
-#define BME_SCK 36
-#define BME_MISO 37
-#define BME_MOSI 35
-#define BME_CS 34
+
+#define BME_SCK  6
+#define BME_MISO 5
+#define BME_MOSI 4
+#define BME_CS   3
 #define VSPI FSPI
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 SPIClass* vspi = new SPIClass(VSPI);
-
 Adafruit_BME680 bme(BME_CS, vspi);
-//Adafruit_BME680 bme(BME_CS,BME_MOSI,BME_MISO, BME_SCK);
-//static const int spiClk = 1000000;  // 1 MHz
 
 void configurationBME(){
-    if(!bme.begin()){
-        Serial.println("Could not find the BME 680. Check the wiring or the address configuration");
-        while(1);
-    }
-    bme.setTemperatureOversampling(BME680_OS_8X);
-    bme.setHumidityOversampling(BME680_OS_2X);
-    bme.setPressureOversampling(BME680_OS_4X);
-    bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-    bme.setGasHeater(320,150); // 320 *C for 150 ms
-}
-/*
-void spiCommand(SPIClass *spi, byte data) {
-  //use it as you would the regular arduino SPI API
-  spi->beginTransaction(SPISettings(spiClk, MSBFIRST, SPI_MODE0));
-  digitalWrite(spi->pinSS(), LOW);  //pull SS slow to prep other end for transfer
-  spi->transfer(data);
-  digitalWrite(spi->pinSS(), HIGH);  //pull ss high to signify end of data transfer
-  spi->endTransaction();
-}
-*/
+    Serial.println("Initialisation du bus SPI capteur...");
+    vspi->begin(BME_SCK, BME_MISO, BME_MOSI, BME_CS);
+    pinMode(BME_CS, OUTPUT);
+    digitalWrite(BME_CS, HIGH);
 
-void getDataBME(){
-    if (! bme.performReading()) {
-      Serial.println("Failed to perform reading :(");
+    if(!bme.begin()){
+        Serial.println(" ERREUR: BME680 introuvable !");
+        Serial.println("Vérifiez le câblage :");
+        Serial.printf("SCK: %d, MISO: %d, MOSI: %d, CS: %d\n", BME_SCK, BME_MISO, BME_MOSI, BME_CS);
+
+    } else {
+        Serial.println(" BME680 trouvé et initialisé !");
+        
+        bme.setTemperatureOversampling(BME680_OS_8X);
+        bme.setHumidityOversampling(BME680_OS_2X);
+        bme.setPressureOversampling(BME680_OS_4X);
+        bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+        bme.setGasHeater(320, 150); 
+    }
+}
+
+void getDataBME() {
+    if (!vspi) {
+      Serial.println("ISSUE VSPI");   
       return;
     }
-    Serial.print("Temperature = ");
-    Serial.print(bme.temperature);
-    Serial.println(" *C");
-
-    Serial.print("Pressure =");
-    Serial.print(bme.pressure/100.0);
-    Serial.println(" hPa");
+    if (!bme.performReading()) {
+        Serial.println("⚠️ Echec lecture BME (Capteur non prêt ou déconnecté)");
+        return;
+    }
+    Serial.print("Temp: "); Serial.print(bme.temperature); Serial.println(" °C");
+    Serial.print("Hum: "); Serial.print(bme.humidity); Serial.println(" %");
+    Serial.print("Pres: "); Serial.print(bme.pressure / 100.0); Serial.println(" hPa");   
 }
