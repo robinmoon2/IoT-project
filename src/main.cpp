@@ -1,35 +1,7 @@
-#include <BME.hpp>
-#include <heltec_unofficial.h>
-#include <TMG3993.hpp>
-#include <WiFi.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include "LittleFS.h"
-#include <ArduinoJson.h>
-#include "Arduino.h"
-#include <String.h>
+#include "main.h"
 
-#define ACTIVATION_PIN 35
-
-struct DataStruct{
-  float temperature;
-  float pressure;
-  float humidity;
-  float light_intensity;
-};
-
-#include "LoRa.hpp"
-const bool MAINBOARD = false;
-
-bool buttonWake = false;
-
-String receivedataweb ="off";
-
-const char* ssid = "A54cluzet";
-const char* password = "alexandre2004";
-
-WebServer server(80);
-DataStruct data = {0.0f,0.0f,0.0f,0.0f};
+#define HELTEC_POWER_BUTTON 
+#include <heltec_unofficial.h> 
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -113,7 +85,6 @@ void setup() {
 
   else{
     heltec_setup();
-
     configurationBME();
     configurationLoRa();    // both the devices use LoRa communication method
 
@@ -174,5 +145,4 @@ void loop() {
       delay(1000);
       esp_deep_sleep_start();
   }
-
 }

@@ -1,8 +1,7 @@
 #pragma once
-#include <Arduino.h>
-#include <Wire.h>
 
-#include "Seeed_TMG3993.h"
+#include "TMG3993.h"
+
 #define I2C_SDA 41
 #define I2C_SCL 42
 

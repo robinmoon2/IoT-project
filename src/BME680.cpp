@@ -1,9 +1,5 @@
 #pragma once
-#include <Arduino.h>
-#include <Wire.h>
-#include <SPI.h>
-#include <Adafruit_Sensor.h>
-#include "Adafruit_BME680.h"
+#include "BME680.h"
 
 #define BME_SCK  6
 #define BME_MISO 5
@@ -43,7 +39,7 @@ void getDataBME() {
       return;
     }
     if (!bme.performReading()) {
-        Serial.println("⚠️ Echec lecture BME (Capteur non prêt ou déconnecté)");
+        Serial.println("Failed listen data from BME");
         return;
     }
     Serial.print("Temp: "); Serial.print(bme.temperature); Serial.println(" °C");
