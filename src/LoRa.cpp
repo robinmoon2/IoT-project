@@ -1,5 +1,5 @@
 #include "LoRa.h"
-#include "HeltecBoard.h" 
+#include "HeltecBoard.h"
 
 #include <vector>
 #include <sstream>
@@ -104,6 +104,12 @@ void SendLoRa(DataStruct data) {
   message+= to_string(data.temperature);
   message+=",";
   message+=to_string(data.humidity);
+  message+= ",";
+  message+= to_string(data.pressure);
+  message+= ",";
+  message+= to_string(data.light_intensity);
+  message+= ",";
+  message+= to_string(data.water_level);
 
   Serial.print("DATA : ");
   Serial.printf("%s \n", message);
@@ -153,16 +159,19 @@ DataStruct StringParser(string input){
     Serial.print(numbers[i]);
     Serial.print(",");
   }
-  
+
   Serial.println();
   DataStruct receivedData;
   receivedData.temperature = numbers[1];
   receivedData.humidity = numbers[2];
-  return receivedData; 
+  receivedData.pressure = numbers[3];
+  receivedData.light_intensity = numbers[4];
+  receivedData.water_level = numbers[5]/530*100; // Placeholder as water level is not sent
+  return receivedData;
 
 }
 
-DataStruct ReceiveLoRa(){ 
+DataStruct ReceiveLoRa(){
   if (rxFlag) {
     rxFlag = false;
     radio.readData(rxdata);

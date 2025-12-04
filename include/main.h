@@ -13,7 +13,7 @@
 #define ACTIVATION_PIN 35
 
 
-const bool MAINBOARD = false;
+const bool MAINBOARD = true;
 
 bool buttonWake = false;
 

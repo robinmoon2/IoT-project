@@ -1,7 +1,7 @@
 #include "main.h"
 
-#define HELTEC_POWER_BUTTON 
-#include <heltec_unofficial.h> 
+#define HELTEC_POWER_BUTTON
+#include <heltec_unofficial.h>
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -9,6 +9,7 @@ void handleApiData() {
     doc["humidity"] = data.humidity;
     doc["pressure"] = data.pressure/100;
     doc["lum"] = data.light_intensity;
+    doc["water_level"] = data.water_level;
 
     String json;
     serializeJson(doc, json);
@@ -91,10 +92,10 @@ void setup() {
     display.setFont(ArialMT_Plain_10);
     display.drawString(0,0,"Hello, world!");
     configurationTMG3993();
-    
+
     print_wakeup_reason();
     if (heltec_wakeup_was_timer()) {
-    heltec_deep_sleep(2000);
+    heltec_deep_sleep(60);
     }
     esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
     while(!Serial);
@@ -106,6 +107,7 @@ void setup() {
 void loop() {
   if(MAINBOARD){
     if(buttonWake){
+      display.clear();
       SendLoRa(1);
       data = ReceiveLoRa();
       buttonWake = false;
@@ -116,10 +118,21 @@ void loop() {
     Serial.print("Humidity =");
     Serial.print(data.humidity);
     Serial.println(" d");
+    Serial.print("Water level = ");
+    Serial.println(data.water_level);
+    display.clear();
+    display.drawString(0,0,"Temp: " + String(data.temperature) + " C");
+    display.drawString(0,10,"Hum: " + String(data.humidity) + " %");
+    display.drawString(0,20,"Pres: " + String(data.pressure/100) + " hPa");
+    display.drawString(0,30,"Lum: " + String(data.light_intensity) + " lx");
+    display.drawString(0,40,"Water lvl: " + String(data.water_level) + " %");
+
+    display.display();
+
     }
     server.handleClient();
   }
-  
+
   else {
       Serial.println("LOOP");
       //vspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
@@ -135,6 +148,8 @@ void loop() {
       data.temperature = bme.temperature;
       data.pressure = bme.pressure;
       data.humidity = bme.humidity;
+      data.light_intensity = tmg3993.getLux();
+      data.water_level = analogRead(19);
 
       Serial.println(data.temperature);
       uint16_t r, g, b, c;
