@@ -19,8 +19,8 @@ bool buttonWake = false;
 
 String receivedataweb ="off";
 
-const char* ssid = "A54cluzet";
-const char* password = "alexandre2004";
+const char* ssid = "Robinou";
+const char* password = "robinestbeau";
 
 WebServer server(80);
 DataStruct data;

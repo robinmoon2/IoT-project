@@ -161,7 +161,7 @@ DataStruct StringParser(string input){
   }
 
   Serial.println();
-  DataStruct receivedData;
+  DataStruct receivedData; 
   receivedData.temperature = numbers[1];
   receivedData.humidity = numbers[2];
   receivedData.pressure = numbers[3];
