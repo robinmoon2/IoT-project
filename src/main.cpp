@@ -81,6 +81,7 @@ void setup() {
   server.begin();
   display.setFont(ArialMT_Plain_10);
   display.drawString(0,0,"Hello, world!");
+  pinMode(34, OUTPUT); // Pin for LED indicator
   while(!Serial);
   }
 
@@ -126,7 +127,13 @@ void loop() {
     display.drawString(0,20,"Pres: " + String(data.pressure/100) + " hPa");
     display.drawString(0,30,"Lum: " + String(data.light_intensity) + " lx");
     display.drawString(0,40,"Water lvl: " + String(data.water_level) + " %");
-
+      if(data.water_level < 20 && data.humidity<20){
+        display.drawString(0,50,"ALERT: LOW WATER!");
+        digitalWrite(34, HIGH); // Turn the LED on (HIGH is the voltage level)
+      }
+      else{
+        digitalWrite(34, LOW); // Turn the LED off by making the voltage LOW
+      }
     display.display();
 
     }
