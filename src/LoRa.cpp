@@ -6,7 +6,6 @@
 #include <iostream>
 #include <string>
 
-
 #define FREQUENCY           866.3
 #define BANDWIDTH           250.0
 #define SPREADING_FACTOR    9
