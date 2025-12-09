@@ -1,7 +1,7 @@
 #include "main.h"
 
-#define HELTEC_POWER_BUTTON 
-#include <heltec_unofficial.h> 
+#define HELTEC_POWER_BUTTON
+#include <heltec_unofficial.h>
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
@@ -9,6 +9,7 @@ void handleApiData() {
     doc["humidity"] = data.humidity;
     doc["pressure"] = data.pressure/100;
     doc["lum"] = data.light_intensity;
+    doc["water_level"] = data.water_level;
 
     String json;
     serializeJson(doc, json);
@@ -48,7 +49,6 @@ void handleReceiveData(){
 
 void setup() {
   heltec_setup();
-
   if(MAINBOARD){
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
@@ -80,6 +80,7 @@ void setup() {
   server.begin();
   display.setFont(ArialMT_Plain_10);
   display.drawString(0,0,"Hello, world!");
+  pinMode(34, OUTPUT); // Pin for LED indicator
   while(!Serial);
   }
 
@@ -91,11 +92,10 @@ void setup() {
     display.setFont(ArialMT_Plain_10);
     display.drawString(0,0,"Hello, world!");
     configurationTMG3993();
-    
+
     print_wakeup_reason();
-    if (heltec_wakeup_was_timer()) {
-    heltec_deep_sleep(2000);
-    }
+
+    esp_sleep_enable_timer_wakeup(60 * 1000000); // 60 secondes en microsecondes
     esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
     while(!Serial);
     pinMode(ACTIVATION_PIN,INPUT);
@@ -105,42 +105,64 @@ void setup() {
 
 void loop() {
   if(MAINBOARD){
-    if(buttonWake){
+    static unsigned long lastLoRaRequest = 0;
+    unsigned long currentMillis = millis();
+
+    if(currentMillis - lastLoRaRequest >= 60 * 1000|| buttonWake){
+      display.clear();
       SendLoRa(1);
+      delay(1500);
       data = ReceiveLoRa();
       buttonWake = false;
+      lastLoRaRequest = currentMillis;
       Serial.print("Temperature = ");
       Serial.print(data.temperature);
       Serial.println(" *C");
 
-    Serial.print("Humidity =");
-    Serial.print(data.humidity);
-    Serial.println(" d");
-    }
+      Serial.print("Humidity =");
+      Serial.print(data.humidity);
+      Serial.println(" d");
+      Serial.print("Water level = ");
+      Serial.println(data.water_level);
+      display.clear();
+      display.drawString(0,0,"Temp: " + String(data.temperature) + " C");
+      display.drawString(0,10,"Hum: " + String(data.humidity) + " %");
+      display.drawString(0,20,"Pres: " + String(data.pressure/100) + " hPa");
+      display.drawString(0,30,"Lum: " + String(data.light_intensity) + " lx");
+      display.drawString(0,40,"Water lvl: " + String(data.water_level) + " %");
+
+      if(data.water_level < 20 && data.humidity<20){
+        display.drawString(0,50,"ALERT: LOW WATER!");
+        digitalWrite(34, HIGH); 
+      }
+      else{
+        digitalWrite(34, LOW); 
+        }
+      display.display();
+      }
     server.handleClient();
   }
-  
+
   else {
       Serial.println("LOOP");
-      //vspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
       Serial.println("VSPI initialisation");
-      //digitalWrite(BME_CS, LOW);
       Serial.println("DIGITAL WRITE LOW");
       getDataBME();
       Serial.println("DATA ACQUIRED");
-      //digitalWrite(BME_CS, HIGH);
       vspi->endTransaction();
 
       getDataTMG3993();
       data.temperature = bme.temperature;
       data.pressure = bme.pressure;
       data.humidity = bme.humidity;
+      data.light_intensity = tmg3993.getLux();
+      data.water_level = analogRead(19);
 
       Serial.println(data.temperature);
       uint16_t r, g, b, c;
       tmg3993.getRGBCRaw(&r,&g,&b,&c);
       data.light_intensity = tmg3993.getLux(r,g,b,c);
-
+      delay(100);
       SendLoRa(data);
       delay(1000);
       esp_deep_sleep_start();

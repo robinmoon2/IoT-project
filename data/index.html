@@ -4,118 +4,248 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Station Météo - ESP32</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    :root{
-      --bg:#0f1724; --card:#18223a; --card-2:#222e4a; --muted:#9aa4b2; --accent:#60a5fa; --text:#e6eef8;
+    /* --- VARIABLES & THEME --- */
+    :root {
+      --bg: #0f1724;
+      --card: #18223a;
+      --card-2: #222e4a;
+      --muted: #9aa4b2;
+      --accent: #60a5fa;
+      --text: #e6eef8;
+      --chart-grid: #334155;
     }
-    *{box-sizing:border-box}
-    body{background:var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif;margin:0;padding:0}
-    .wrap{max-width:980px;margin:20px auto;padding:18px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    h1{font-size:1.5rem;margin:0}
-    .tabs{display:flex;gap:8px}
-    .tab-btn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--text);padding:8px 12px;border-radius:8px;cursor:pointer}
-    .tab-btn.active{background:var(--accent);color:#07203a;border:1px solid rgba(0,0,0,0.15)}
-    .section{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 6px 18px rgba(2,6,23,0.3)}
-    .row{display:flex;gap:16px;flex-wrap:wrap}
-    .card{flex:1 1 220px;background:var(--card-2);border-radius:10px;padding:12px}
-    .label{color:var(--muted);font-size:0.95rem}
-    .value{font-size:2rem;font-weight:700;margin-top:6px}
-    .unit{font-size:0.9rem;color:var(--muted);margin-left:6px}
-    .desc{font-size:1rem;margin-top:8px;color:var(--text)}
-    .icon{width:72px;height:72px;vertical-align:middle}
-    .rain-bar{height:18px;background:#2d3748;border-radius:8px;margin:6px 0;overflow:hidden}
-    .rain-bar-inner{height:100%}
-    .forecast-grid{display:flex;gap:12px;flex-wrap:wrap}
-    .forecast-card{background:var(--card-2);border-radius:10px;padding:8px;text-align:center;flex:1 1 120px}
-    .small{font-size:0.9rem;color:var(--muted)}
-    footer{margin-top:14px;color:var(--muted);font-size:0.9rem;text-align:center}
-    /* tabs content */
-    .tab-content{display:none}
-    .tab-content.active{display:block}
-    /* hourly list */
-    .hour-list{display:flex;gap:8px;overflow:auto;padding:8px 0}
-    .hour-item{background:var(--card-2);min-width:108px;border-radius:8px;padding:8px;text-align:center}
-    .time{font-size:0.9rem;color:var(--muted)}
-    /* responsive tweaks */
-    @media (max-width:640px){ .icon{width:56px;height:56px} .value{font-size:1.6rem} }
+    body.light-theme {
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --card-2: #e2e8f0;
+      --muted: #64748b;
+      --accent: #0284c7;
+      --text: #0f1724;
+      --chart-grid: #cbd5e1;
+    }
+
+    * { box-sizing: border-box; transition: background-color 0.3s, color 0.3s; }
+    body { background: var(--bg); color: var(--text); font-family: Inter, Arial, sans-serif; margin: 0; padding: 0; }
+    .wrap { max-width: 1000px; margin: 20px auto; padding: 18px; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    h1 { font-size: 1.5rem; margin: 0; }
+
+    .section { background: var(--card); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.1); }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+    /* Cartes */
+    .card { flex: 1 1 160px; background: var(--card-2); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .label { color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+    .value { font-size: 1.8rem; font-weight: 700; margin-top: 6px; }
+    .unit { font-size: 0.9rem; color: var(--muted); margin-left: 2px; }
+
+    /* Bouton */
+    button { background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: bold; margin-top: 10px; }
+    button:hover { opacity: 0.9; }
+
+    /* Graphique */
+    .chart-container { position: relative; height: 350px; width: 100%; margin-top: 25px; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <header>
       <h1>🌤️ Station Météo</h1>
-      <div class="tabs" role="tablist" aria-label="Navigation">
-      </div>
+      <div id="theme-indicator" style="font-size:0.9rem; color:var(--muted)">Mode: Auto</div>
     </header>
 
-    <!-- HOME -->
-    <section id="home" class="section tab-content active" aria-labelledby="Accueil">
+    <section class="section">
       <div class="row">
         <div class="card">
-          <div class="label">DATA</div>
-          <div class="value" id="temp-in">-- <span class="unit">°C</span></div>
-          <div class="small" id="hum-in">-- %</div>
-          <div class="small" id="pres-in">-- <span class="unit">hPa</span></div>
-          <div class="small" id="lum">--<span class="unit">lx</span></div>
-          <div class="small" id="last-update">Dernière mise à jour : --</div>
+          <div class="label">Température</div>
+          <div class="value" id="temp-in">--<span class="unit">°C</span></div>
         </div>
 
+        <div class="card" style="border-bottom: 3px solid #60a5fa;"> <div class="label">Humidité Air</div>
+          <div class="value" id="hum-in">--<span class="unit">%</span></div>
+        </div>
 
+        <div class="card">
+          <div class="label">Pression</div>
+          <div class="value" id="pres-in">--<span class="unit">hPa</span></div>
+        </div>
+
+        <div class="card">
+          <div class="label">Luminosité</div>
+          <div class="value" id="lum">--<span class="unit">lx</span></div>
+        </div>
+
+        <div class="card" style="border-bottom: 3px solid #34d399;"> <div class="label">Niveau Eau</div>
+          <div class="value" id="water-level">--<span class="unit">%</span></div>
+        </div>
       </div>
-      <button onclick="sendReceive()"data-tab="receive">Envoyer Données</button>
+
+      <div class="chart-container">
+        <canvas id="weatherChart"></canvas>
+      </div>
+
+      <div class="row" style="margin-top: 16px;">
+          <div style="font-size:0.9rem; color:var(--muted)" id="last-update">En attente de données...</div>
+      </div>
+
+      <div style="text-align: center; margin-top: 10px;">
+        <button onclick="sendReceive()">Envoyer Données Manuelles</button>
+      </div>
     </section>
+  </div>
 
   <script>
     const API_URL = '/api/data';
     const RECEIVE_URL = '/api/receive';
     const POLL_MS = 10000;
-    document.querySelectorAll('.tab-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=> {
-        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.getAttribute('data-tab');
-        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-        document.getElementById(tab).classList.add('active');
-      });
-    });
-    // map OpenWeather id -> icon (online fallback)    // tabs
-    document.querySelectorAll('.tab-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=> {
-        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.getAttribute('data-tab');
-        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-        document.getElementById(tab).classList.add('active');
-      });
+    const LUX_THRESHOLD_DAY = 50;
+
+    // --- CONFIGURATION GRAPHIQUE ---
+    const ctx = document.getElementById('weatherChart').getContext('2d');
+    const weatherChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Humidité Air (%)', // Variable 1
+            data: [],
+            borderColor: '#60a5fa', // Bleu
+            backgroundColor: 'rgba(96, 165, 250, 0.2)',
+            borderWidth: 2,
+            tension: 0.4,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Niveau Eau (%)', // Variable 2
+            data: [],
+            borderColor: '#34d399', // Vert
+            backgroundColor: 'rgba(52, 211, 153, 0.2)',
+            borderWidth: 2,
+            tension: 0.4,
+            yAxisID: 'y' // Même axe Y car tous les deux en % (0-100)
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            grid: { color: '#334155' }
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            min: 0,
+            max: 100,
+            title: { display: true, text: 'Pourcentage (%)' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: '#9aa4b2' } }
+        }
+      }
     });
 
+    // --- FONCTION THEME ---
+    function updateTheme(luxValue) {
+      const body = document.body;
+      const indicator = document.getElementById('theme-indicator');
+      const isDay = luxValue > LUX_THRESHOLD_DAY;
+
+      if (isDay) {
+        body.classList.add('light-theme');
+        indicator.textContent = "Mode: Jour ☀️";
+        weatherChart.options.scales.x.grid.color = '#cbd5e1';
+        weatherChart.options.scales.y.grid.color = '#cbd5e1';
+        weatherChart.options.plugins.legend.labels.color = '#0f1724';
+      } else {
+        body.classList.remove('light-theme');
+        indicator.textContent = "Mode: Nuit 🌙";
+        weatherChart.options.scales.x.grid.color = '#334155';
+        weatherChart.options.scales.y.grid.color = 'rgba(255, 255, 255, 0.1)';
+        weatherChart.options.plugins.legend.labels.color = '#9aa4b2';
+      }
+      weatherChart.update('none');
+    }
+
+    // --- AJOUT DONNEES AU GRAPHIQUE ---
+    function addDataToChart(timeLabel, humidity, waterLevel) {
+      weatherChart.data.labels.push(timeLabel);
+      weatherChart.data.datasets[0].data.push(humidity);   // Variable 1
+      weatherChart.data.datasets[1].data.push(waterLevel); // Variable 2
+
+      // Garder historique court (20 points)
+      if (weatherChart.data.labels.length > 20) {
+        weatherChart.data.labels.shift();
+        weatherChart.data.datasets[0].data.shift();
+        weatherChart.data.datasets[1].data.shift();
+      }
+      weatherChart.update();
+    }
+
+    // --- RECUPERATION DES DONNEES ---
     async function fetchAndRender(){
       try{
         const r = await fetch(API_URL, {cache:'no-store'});
         if(!r.ok) throw new Error('HTTP '+r.status);
-        const data = await r.json();
-        if (data.temperature !== undefined) {
-          document.getElementById('temp-in').innerHTML = (data.temperature).toFixed(1) + ' <span class="unit">°C</span>';
-        }
-        if (data.humidity !== undefined) document.getElementById('hum-in').textContent = data.humidity.toFixed(1)+' %';
-        if (data.pressure !== undefined) document.getElementById('pres-in').textContent = data.pressure.toFixed(1)+' hPa';
-        if (data.lum !== undefined) document.getElementById('lum').textContent = data.lum.toFixed(0)+' lx';
-        const now = new Date()
 
-      }catch(err){
+        const data = await r.json();
+
+        // 1. Affichage Température
+        if (data.temperature !== undefined)
+           document.getElementById('temp-in').innerHTML = data.temperature.toFixed(1) + '<span class="unit">°C</span>';
+
+        // 2. Affichage Humidité (Variable 1)
+        if (data.humidity !== undefined)
+           document.getElementById('hum-in').innerHTML = data.humidity.toFixed(1) + '<span class="unit">%</span>';
+
+        // 3. Affichage Pression
+        if (data.pressure !== undefined)
+           document.getElementById('pres-in').innerHTML = data.pressure.toFixed(1) + '<span class="unit">hPa</span>';
+
+        // 4. Affichage Niveau Eau (Variable 2)
+        if (data.water_level !== undefined)
+           document.getElementById('water-level').innerHTML = data.water_level.toFixed(0) + '<span class="unit">%</span>';
+
+        // 5. Gestion Lux / Thème
+        if (data.lum !== undefined) {
+          document.getElementById('lum').innerHTML = data.lum.toFixed(0) + '<span class="unit">lx</span>';
+          updateTheme(data.lum);
+        }
+
+        // 6. Mise à jour Graphique et Heure
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        document.getElementById('last-update').textContent = 'Dernière mise à jour : ' + timeString;
+
+        // On ne met à jour le graph que si on a les DEUX valeurs
+        if (data.humidity !== undefined && data.water_level !== undefined) {
+           addDataToChart(timeString, data.humidity, data.water_level);
+        }
+
+      } catch(err){
         console.error('Fetch error:', err);
+      }
     }
-    }
+
     async function sendReceive(){
       try{
-        const r = await fetch(RECEIVE_URL);
-        if(!r.ok) throw new Error('HTTP '+r.status);
+        await fetch(RECEIVE_URL);
+        alert("Demande envoyée !");
       }catch(err){
         console.error('Fetch error:', err);
       }
     }
-    sendReceive();
+
+    // Lancement
     fetchAndRender();
     setInterval(fetchAndRender, POLL_MS);
   </script>

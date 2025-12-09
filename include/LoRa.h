@@ -3,12 +3,12 @@
 #include <string>
 #include "DataStruct.h"
 
-// Fonctions utilitaires
+// Utilitary function 
 void print_wakeup_reason();
 
-// Fonctions LoRa
+// Function of Lora
 void configurationLoRa();
 void SendLoRa(int c);
-void SendLoRa(DataStruct data); // Passage par valeur pour correspondre à ton code
+void SendLoRa(DataStruct data); 
 DataStruct ReceiveLoRa();
 int ReceiveLoRaWakeUp();

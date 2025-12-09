@@ -13,14 +13,14 @@
 #define ACTIVATION_PIN 35
 
 
-const bool MAINBOARD = false;
+const bool MAINBOARD = true;
 
 bool buttonWake = false;
 
 String receivedataweb ="off";
 
-const char* ssid = "A54cluzet";
-const char* password = "alexandre2004";
+const char* ssid = "Robinou";
+const char* password = "robinestbeau";
 
 WebServer server(80);
-DataStruct data = {0.0f,0.0f,0.0f,0.0f};
+DataStruct data;

@@ -1,12 +1,11 @@
 #pragma once
 #include <Arduino.h>
 
-// On inclut RadioLib ici pour que LoRa.cpp connaisse le type "SX1262"
-// La lib Heltec l'utilise en interne.
+// to avoid issue we add the RadioLib here 
 #include <RadioLib.h> 
 
-// --- DÉCLARATIONS EXTERNES ---
-// Cela permet à LoRa.cpp d'utiliser ces objets définis dans main.cpp (via la lib)
+// --- Extern declaration ---
+// We can use this objects in LoRa.cpp and defined them later in the main.cpp
 extern SX1262 radio;
 extern int _radiolib_status;
 extern void heltec_led(int percent);
@@ -14,8 +13,8 @@ extern void heltec_deep_sleep(int ms = 0);
 extern bool heltec_wakeup_was_timer();
 
 // --- MACROS ---
-// On recopie les macros pratiques de la lib Heltec pour pouvoir les utiliser dans LoRa.cpp
-// sans inclure toute la librairie Heltec qui causerait le conflit.
+// we copy paste the important functions of the Heltec library to use them in LoRa.cpp without to include all the library
+
 
 #ifndef RADIOLIB_OR_HALT
   #define RADIOLIB_OR_HALT(action) { \
