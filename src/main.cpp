@@ -1,41 +1,16 @@
-#include <BME.hpp>
+#include "main.h"
+
+#define HELTEC_POWER_BUTTON
 #include <heltec_unofficial.h>
-#include <TMG3993.hpp>
-#include <WiFi.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include "LittleFS.h"
-#include <ArduinoJson.h>
-#include "Arduino.h"
-#include <String.h>
-
-#define ACTIVATION_PIN 35
-
-struct DataStruct{
-  float temperature;
-  float pressure;
-  float humidity;
-  float light_intensity;
-};
-
-#include "LoRa.hpp"
-
-const bool MAINBOARD = true;
-
-String receivedataweb ="off";
-const char* ssid = "A54cluzet";
-const char* password = "alexandre2004";
-
-WebServer server(80);
-DataStruct data = {0.0f,0.0f,0.0f,0.0f};
-
 
 void handleApiData() {
     DynamicJsonDocument doc(4096);
-    doc["temperature"] = bme.temperature;
-    doc["humidity"] = bme.humidity;
-    doc["pressure"] = bme.pressure/100;
-    doc["lum"] = tmg3993.getLux();
+    doc["temperature"] = data.temperature;
+    doc["humidity"] = data.humidity;
+    doc["pressure"] = data.pressure/100;
+    doc["lum"] = data.light_intensity;
+    doc["water_level"] = data.water_level;
+
     String json;
     serializeJson(doc, json);
     Serial.println("API data sent");
@@ -61,10 +36,7 @@ void handleReceiveData(){
       String payload = http.getString();
       receivedataweb = payload;
       Serial.println("Data received from web: " + receivedataweb);
-      display.clear();
-      display.drawString(0,0,"Data from web:");
-      display.drawString(0,10,receivedataweb);
-      display.display();
+      buttonWake = true;
        delay(1000);
   } else {
       Serial.print("Error on HTTP request: ");
@@ -76,11 +48,7 @@ void handleReceiveData(){
 
 
 void setup() {
-  Serial.begin(115200);
   heltec_setup();
-  // both the devices use LoRa communication method
-  configurationLoRa();  
-
   if(MAINBOARD){
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
@@ -106,81 +74,97 @@ void setup() {
   server.on("/api/data", handleApiData);
   server.on("/api/receive", handleReceiveData);
 
-    if (!LittleFS.begin()) {
-      Serial.println("Erreur LittleFS");
-      while (1);
-    }
-    server.on("/", handleIndex);
-    server.on("/api/data", handleApiData);
+    configurationLoRa();    // both the devices use LoRa communication method
 
-    // Start the server
-    server.begin();
-    display.setFont(ArialMT_Plain_10);
-    display.drawString(0,0,"Hello, world!");
-    while(!Serial);
+  // Start the server
+  server.begin();
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 0, "IP: " + WiFi.localIP().toString());
+  pinMode(34, OUTPUT); // Pin for LED indicator
+  while(!Serial);
   }
 
   else{
-    display.setFont(ArialMT_Plain_10);
+    heltec_setup();
     configurationBME();
+    configurationLoRa();    // both the devices use LoRa communication method
+
+    display.setFont(ArialMT_Plain_10);
     display.drawString(0,0,"Hello, world!");
     configurationTMG3993();
-    
+
     print_wakeup_reason();
-    if (heltec_wakeup_was_timer()) {
-    heltec_deep_sleep(2000);
-    }
+
+    esp_sleep_enable_timer_wakeup(WAKEUP_INTERVAL_US); // Wakeup every 20 minutes (microseconds)
     esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
     while(!Serial);
     pinMode(ACTIVATION_PIN,INPUT);
   }
-
   display.display();
-
 }
 
 void loop() {
   if(MAINBOARD){
-    SendLoRa(1);
-    data = ReceiveLoRa();
+    static unsigned long lastLoRaRequest = 0;
+    unsigned long currentMillis = millis();
+
+    if(currentMillis - lastLoRaRequest >= 60 * 1000|| buttonWake){
+      display.clear();
+      SendLoRa(1);
+      delay(1500);
+      data = ReceiveLoRa();
+      buttonWake = false;
+      lastLoRaRequest = currentMillis;
+      Serial.print("Temperature = ");
+      Serial.print(data.temperature);
+      Serial.println(" *C");
+
+      Serial.print("Humidity =");
+      Serial.print(data.humidity);
+      Serial.println(" d");
+      Serial.print("Water level = ");
+      Serial.println(data.water_level);
+      display.clear();
+      display.drawString(0,0,"Temp: " + String(data.temperature) + " C");
+      display.drawString(0,10,"Hum: " + String(data.humidity) + " %");
+      display.drawString(0,20,"Pres: " + String(data.pressure/100) + " hPa");
+      display.drawString(0,30,"Lum: " + String(data.light_intensity) + " lx");
+      display.drawString(0,40,"Water lvl: " + String(data.water_level) + " %");
+
+      if(data.water_level < 20 && data.humidity<20){
+        display.drawString(0,50,"ALERT: LOW WATER!");
+        digitalWrite(34, HIGH); 
+      }
+      else{
+        digitalWrite(34, LOW); 
+        }
+      display.display();
+      }
     server.handleClient();
-    delay(10000);
   }
-  else{
-    getDataBME();
-    getDataTMG3993();
-    data.temperature = 20;
-    data.pressure = 15;
-    data.humidity = 74.3f;
-    uint16_t r, g, b, c;
-    tmg3993.getRGBCRaw(&r,&g,&b,&c);
-    data.light_intensity = tmg3993.getLux(r,g,b,c);
-    SendLoRa(data);
-    delay(1000);
-    esp_deep_sleep_start();
-    
+
+  else {
+      Serial.println("LOOP");
+      Serial.println("VSPI initialisation");
+      Serial.println("DIGITAL WRITE LOW");
+      getDataBME();
+      Serial.println("DATA ACQUIRED");
+      vspi->endTransaction();
+
+      getDataTMG3993();
+      data.temperature = bme.temperature;
+      data.pressure = bme.pressure;
+      data.humidity = bme.humidity;
+      data.light_intensity = tmg3993.getLux();
+      data.water_level = analogRead(19);
+
+      Serial.println(data.temperature);
+      uint16_t r, g, b, c;
+      tmg3993.getRGBCRaw(&r,&g,&b,&c);
+      data.light_intensity = tmg3993.getLux(r,g,b,c);
+      delay(100);
+      SendLoRa(data);
+      delay(1000);
+      esp_deep_sleep_start();
   }
-  
 }
-  /*
-  server.handleClient();
-  display.clear();
-  digitalWrite(LED_BUILTIN, LOW);
-  getDataTMG3993();
-  getDataBME();
-
-  data1.pressure = bme.pressure;
-  data1.temperature = bme.temperature;
-  data1.light_intensity = tmg3993.getLux();
-  data1.humidity = bme.humidity;
-
-  snprintf(buf, sizeof(buf), "T: %.2f C", bme.temperature);
-  display.drawString(10,10,buf);
-  snprintf(buf, sizeof(buf), "P: %.2f hPa", bme.pressure/100.0);
-  display.drawString(10,30,buf);
-  snprintf(buf, sizeof(buf), "H: %.2f %%", bme.humidity);
-  display.drawString(10,50,buf);
-  snprintf(buf,sizeof(buf),"lux: %.2f ",tmg3993.getLux());
-  display.drawString(10,70,buf);
-  display.display();
-}*/

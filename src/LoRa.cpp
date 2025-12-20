@@ -1,44 +1,28 @@
-#pragma once
+#include "LoRa.h"
+#include "HeltecBoard.h"
 
 #include <vector>
 #include <sstream>
-#include <string>
 #include <iostream>
-#include <regex>
-#include <vector>
-#include "Arduino.h"
+#include <string>
 
-#define HELTEC_POWER_BUTTON   // must be before "#include <heltec_unofficial.h>"
-#define WAKEUP_GPIO    GPIO_NUM_14
-
-#include "main.cpp"
-#include <heltec_unofficial.h>
-#define PAUSE               300
-#define FREQUENCY           866.3       // for Europe
+#define FREQUENCY           866.3
 #define BANDWIDTH           250.0
 #define SPREADING_FACTOR    9
 #define TRANSMIT_POWER      0
-#define ACTIVATION_PIN      35
-
-String rxdata;
-volatile bool rxFlag = false;
-long counter = 0;
-uint64_t last_tx = 0;
-uint64_t tx_time;
-uint64_t minimum_pause;
 
 using namespace std;
 
-bool buttonWake = false;
-bool clockWake  = false;
-uint32_t lastPress = 0;
-
+String rxdata;
+volatile bool rxFlag = false;
+uint64_t last_tx = 0;
+uint64_t tx_time;
+uint64_t minimum_pause = 0;
 
 void print_wakeup_reason(){
   esp_sleep_wakeup_cause_t wakeup_reason;
 
   wakeup_reason = esp_sleep_get_wakeup_cause();
-  
 
   switch(wakeup_reason)
   {
@@ -57,33 +41,33 @@ void rx() {
 
 
 void configurationLoRa() {
-  both.println("Radio init");
+  Serial.println("Radio init");
   RADIOLIB_OR_HALT(radio.begin());
   // Set the callback function for received packets
   radio.setDio1Action(rx);
   // Set radio parameters
-  both.printf("Frequency: %.2f MHz\n", FREQUENCY);
+  Serial.printf("Frequency: %.2f MHz\n", FREQUENCY);
   RADIOLIB_OR_HALT(radio.setFrequency(FREQUENCY));
-  both.printf("Bandwidth: %.1f kHz\n", BANDWIDTH);
+  Serial.printf("Bandwidth: %.1f kHz\n", BANDWIDTH);
   RADIOLIB_OR_HALT(radio.setBandwidth(BANDWIDTH));
-  both.printf("Spreading Factor: %i\n", SPREADING_FACTOR);
+  Serial.printf("Spreading Factor: %i\n", SPREADING_FACTOR);
   RADIOLIB_OR_HALT(radio.setSpreadingFactor(SPREADING_FACTOR));
-  both.printf("TX power: %i dBm\n", TRANSMIT_POWER);
+  Serial.printf("TX power: %i dBm\n", TRANSMIT_POWER);
   RADIOLIB_OR_HALT(radio.setOutputPower(TRANSMIT_POWER));
   // Start receiving
   RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
 }
 
+
+// ============ SENDING FUNCTION =====================
 void SendLoRa(int c) {
-  heltec_loop();
   bool tx_legal = millis() > last_tx + minimum_pause;
   // Transmit a packet every PAUSE seconds or when the button is pressed
   if (!tx_legal) {
-    both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
+    Serial.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
     return;
   }
-
-  both.printf("TX [%s] ", String(c).c_str());
+  Serial.printf("TX [%s] ", String(c).c_str());
   radio.clearDio1Action();
   heltec_led(50);
 
@@ -95,9 +79,9 @@ void SendLoRa(int c) {
   heltec_led(0); // turn down the LED of the board
 
   if (_radiolib_status == RADIOLIB_ERR_NONE) {
-    both.printf("OK (%i ms)\n", (int)tx_time);
+    Serial.printf("OK (%i ms)\n", (int)tx_time);
   } else {
-    both.printf("fail (%i)\n", _radiolib_status);
+    Serial.printf("fail (%i)\n", _radiolib_status);
   }
 
   minimum_pause = tx_time * 100;
@@ -106,74 +90,30 @@ void SendLoRa(int c) {
   RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
 }
 
-
-DataStruct StringParser(string input){
-  regex numberRegex(R"(\d+)");
-  sregex_iterator it(input.begin(), input.end(), numberRegex);
-  sregex_iterator end;
-  vector<float> numbers;
-  
-  while (it != end) {
-      numbers.push_back(stof(it->str()));
-      ++it;
-  }
-
-  DataStruct receivedData;
-  receivedData.temperature = numbers[0];
-  receivedData.humidity = numbers[1];
-  return receivedData;
-}
-
-
-DataStruct ReceiveLoRa(){ 
-  if (rxFlag) {
-    rxFlag = false;
-    radio.readData(rxdata);
-    Serial.println("FLAG");
-    if (_radiolib_status == RADIOLIB_ERR_NONE) {
-      both.printf("RX [%s]\n", rxdata.c_str());
-      both.printf("  RSSI: %.2f dBm\n", radio.getRSSI());
-      both.printf("  SNR: %.2f dB\n", radio.getSNR());
-    }
-    RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-    Serial.printf("MESSAGE : ");
-    Serial.println(rxdata);
-    return StringParser(rxdata.c_str());
-  }
-}
-
-
-int ReceiveLoRaWakeUp(){ 
-  if (rxFlag) {
-    rxFlag = false;
-    radio.readData(rxdata);
-    Serial.println("FLAG");
-    if (_radiolib_status == RADIOLIB_ERR_NONE) {
-      both.printf("RX [%s]\n", rxdata.c_str());
-      both.printf("  RSSI: %.2f dBm\n", radio.getRSSI());
-      both.printf("  SNR: %.2f dB\n", radio.getSNR());
-    }
-    RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
-    return rxdata.toInt();
-  }
-}
-
-
 void SendLoRa(DataStruct data) {
-  heltec_loop();
   bool tx_legal = millis() > last_tx + minimum_pause;
   // Transmit a packet every PAUSE seconds or when the button is pressed
 
   if (!tx_legal) {
-    both.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
+    Serial.printf("Legal limit, wait %i sec.\n", (int)((minimum_pause - (millis() - last_tx)) / 1000) + 1);
     return;
   }
-  string message = "";
+
+  string message = "0,";
   message+= to_string(data.temperature);
   message+=",";
   message+=to_string(data.humidity);
+  message+= ",";
+  message+= to_string(data.pressure);
+  message+= ",";
+  message+= to_string(data.light_intensity);
+  message+= ",";
+  message+= to_string(data.water_level);
 
-  both.printf("TX [%s] ", (message).c_str());
+  Serial.print("DATA : ");
+  Serial.printf("%s \n", message);
+
+  Serial.printf("TX [%s] ", (message).c_str());
   radio.clearDio1Action();
   heltec_led(50);
 
@@ -185,9 +125,9 @@ void SendLoRa(DataStruct data) {
   heltec_led(0); // turn down the LED of the board
 
   if (_radiolib_status == RADIOLIB_ERR_NONE) {
-    both.printf("OK (%i ms)\n", (int)tx_time);
+    Serial.printf("OK (%i ms)\n", (int)tx_time);
   } else {
-    both.printf("fail (%i)\n", _radiolib_status);
+    Serial.printf("fail (%i)\n", _radiolib_status);
   }
 
   minimum_pause = tx_time * 100;
@@ -195,3 +135,55 @@ void SendLoRa(DataStruct data) {
   radio.setDio1Action(rx); // go to the receive mode
   RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
 }
+
+
+
+// ============ RECEIVING FUNCTION =====================
+
+DataStruct StringParser(string input){
+
+  size_t pos = 0;
+  string token;
+  string delimiter = ",";
+  vector<float> numbers;
+
+  while((pos = input.find(delimiter)) != string::npos){
+      token = input.substr(0,pos);
+      numbers.push_back((float)atof(token.c_str()));
+      input.erase(0,pos + delimiter.length());
+  }
+  numbers.push_back((float)atof(input.c_str()));
+
+  for(int i=0; i<numbers.size();i++){
+    Serial.print(numbers[i]);
+    Serial.print(",");
+  }
+
+  Serial.println();
+  DataStruct receivedData; 
+  receivedData.temperature = numbers[1];
+  receivedData.humidity = numbers[2];
+  receivedData.pressure = numbers[3];
+  receivedData.light_intensity = numbers[4];
+  receivedData.water_level = numbers[5]/530*100; // Placeholder as water level is not sent
+  return receivedData;
+
+}
+
+DataStruct ReceiveLoRa(){
+  if (rxFlag) {
+    rxFlag = false;
+    radio.readData(rxdata);
+    Serial.println("FLAG");
+    if (_radiolib_status == RADIOLIB_ERR_NONE) {
+      Serial.printf("RX [%s]\n", rxdata.c_str());
+      Serial.printf("  RSSI: %.2f dBm\n", radio.getRSSI());
+      Serial.printf("  SNR: %.2f dB\n", radio.getSNR());
+    }
+    RADIOLIB_OR_HALT(radio.startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF));
+    return StringParser(rxdata.c_str());
+  }
+  DataStruct empty{};
+  return empty;
+}
+

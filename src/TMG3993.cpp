@@ -1,8 +1,5 @@
-#pragma once
-#include <Arduino.h>
-#include <Wire.h>
+#include "TMG3993.h"
 
-#include "Seeed_TMG3993.h"
 #define I2C_SDA 41
 #define I2C_SCL 42
 
@@ -43,9 +40,6 @@ void getDataTMG3993(){
         Serial.print(lux);
         Serial.print("\tCCT: ");
         Serial.println(cct);
-        Serial.println("----");
-
-        // don't forget to clear the interrupt bits
         tmg3993.clearALSInterrupts();
     }
     delay(100);
