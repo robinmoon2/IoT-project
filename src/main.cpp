@@ -79,7 +79,7 @@ void setup() {
   // Start the server
   server.begin();
   display.setFont(ArialMT_Plain_10);
-  display.drawString(0,0,"Hello, world!");
+  display.drawString(0, 0, "IP: " + WiFi.localIP().toString());
   pinMode(34, OUTPUT); // Pin for LED indicator
   while(!Serial);
   }
@@ -95,7 +95,7 @@ void setup() {
 
     print_wakeup_reason();
 
-    esp_sleep_enable_timer_wakeup(60 * 1000000); // 60 secondes en microsecondes
+    esp_sleep_enable_timer_wakeup(WAKEUP_INTERVAL_US); // Wakeup every 20 minutes (microseconds)
     esp_sleep_enable_ext0_wakeup(WAKEUP_GPIO, 1);
     while(!Serial);
     pinMode(ACTIVATION_PIN,INPUT);
